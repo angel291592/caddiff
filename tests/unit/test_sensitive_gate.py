@@ -10,10 +10,12 @@
 不联网、不依赖 FreeCAD、导入时零副作用（AGENTS.md §7）。
 """
 import os
+import subprocess
 
 import scan_sensitive as gate
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
 _GATE_SRC = os.path.join(_HERE, "..", "..", "tools", "scan_sensitive.py")
 
 # ── 违规样本：运行时拼装，源码里不留字面量 ────────────────────────────────
@@ -78,6 +80,33 @@ def test_env_var_interpolation_is_not_a_secret():
 def test_checksums_and_data_uris_are_not_secrets():
     assert "long-hex-string" not in _rules("sha256: " + "a" * 64)
     assert "long-hex-string" not in _rules("data:image/png;base64," + "b" * 64)
+
+
+def _head_sha():
+    out = subprocess.run(["git", "-C", _ROOT, "rev-parse", "HEAD"],
+                         capture_output=True, text=True, encoding="utf-8")
+    return out.stdout.strip()
+
+
+def test_this_repositorys_own_commit_ids_are_not_secrets():
+    # release-please 把每条提交写成 /commit/<40 位 sha> 链接，CI 扫全 ref 时会读到它。
+    # 误报的代价是 main 永久红灯（每次发布 PR 都重建该分支），所以这条必须放行。
+    head = _head_sha()
+    assert len(head) == 40, "expected a full hex object name, got %r" % head
+    assert head in gate.repo_object_names()
+    assert "long-hex-string" not in _rules(f"* fix something ([1a2b3c4](http://x/commit/{head}))")
+
+
+def test_a_40_hex_string_that_is_not_an_object_is_still_caught():
+    # 放行的判据是「本仓库的对象名」，不是「长得像 commit id」。
+    assert "long-hex-string" in _rules("blob = " + _HEX40)
+
+
+def test_the_object_exemption_is_per_match_not_per_line():
+    # 安全属性：同一行里，一个自家 commit id 不许把旁边的真密钥一起豁免掉。
+    # 这正是 _BENIGN_CONTEXT 那种行级豁免做不到的事，所以这里必须是匹配级。
+    line = f"see http://x/commit/{_head_sha()} then blob = {_HEX40}"
+    assert "long-hex-string" in _rules(line)
 
 
 def test_placeholder_values_are_not_secrets():

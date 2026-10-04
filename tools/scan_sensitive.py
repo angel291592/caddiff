@@ -51,7 +51,8 @@ TEXT_RULES = {
     "aws-access-key": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     "slack-token": re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"),
     "private-key-block": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
-    # 高熵十六进制串（40 位起）。跳过校验和 / data URI 这类常见良性上下文。
+    # 高熵十六进制串（40 位起）。跳过校验和 / data URI 这类常见良性上下文，
+    # 以及**本仓库自己的 git 对象名**（见 repo_object_names 的 docstring）。
     "long-hex-string": re.compile(r"\b[0-9a-fA-F]{40,}\b"),
     # 本机绝对路径：暴露用户名与目录结构，且换机器必然失效。
     "absolute-user-path": re.compile(r"(?i)\b[a-z]:\\\\?users\\\\?|\b[a-z]:/users/|/home/[a-z0-9._-]+/"),
@@ -94,6 +95,38 @@ def _is_binary(data: bytes) -> bool:
     return b"\x00" in data[:8192]
 
 
+_OBJECT_NAMES = None
+
+
+def repo_object_names():
+    """本仓库全部 git 对象名（commit / tree / blob / tag）的集合。
+
+    why 高熵规则需要它：``\\b[0-9a-f]{{40,}}\\b`` 无法自己区分「谁粘贴进来的密钥」与
+    「本仓库自己的 40 位对象名」。``scan_history`` 早就因为同一个理由按**对象类型**过滤
+    （见它的 docstring：tree 的内容会被高熵规则全部误报）；这里是同一条原则下沉到
+    **行匹配层**的必要延伸——release-please 自动生成的 CHANGELOG 把每条提交写成
+    ``/commit/<40 位 sha>`` 链接，若不放行，main 的 CI 会因为机器人自己写的内容**永久**
+    变红（每次发布 PR 都重建该分支）。而会常亮红灯的闸门结局是被关掉，那比误报更糟。
+
+    为什么用一次 ``--batch-all-objects`` 拿全集，而不是对每个命中起一个 ``cat-file -e``：
+    后者让「一个塞满伪造 40 位串的文件」变成几千次进程启动，等于给闸门自己造了一个
+    拒绝服务面。本仓 200 余个对象，一次调用可忽略。
+
+    为什么是**匹配级**而非行级豁免：行级（``_BENIGN_CONTEXT``）会让同一行里的真密钥
+    跟着一起被放过。对象名判定只放过它自己那一个 token。
+
+    取不到对象表时返回空集合——即「什么都不算自家对象」，逐字维持改动前的行为，
+    宁可误报也不放过（AGENTS.md D-018 的 fail-closed 方向）。
+    """
+    global _OBJECT_NAMES
+    if _OBJECT_NAMES is None:
+        out = _run_git(["cat-file", "--batch-all-objects",
+                        "--batch-check=%(objectname)"])
+        _OBJECT_NAMES = (frozenset(out.stdout.split())
+                         if out.returncode == 0 else frozenset())
+    return _OBJECT_NAMES
+
+
 def load_sensitive_terms():
     """加载专属层词表。文件不存在时返回空表（CI / 他人克隆的正常情况）。"""
     candidates = []
@@ -122,7 +155,12 @@ def scan_text(text, label, terms):
         for name, rx in TEXT_RULES.items():
             if benign and name in _BENIGN_EXEMPT:
                 continue
-            if rx.search(line):
+            if name == "long-hex-string":
+                objects = repo_object_names()
+                if any(m.group(0).lower() not in objects
+                       for m in rx.finditer(line)):
+                    findings.append((label, lineno, name))
+            elif rx.search(line):
                 findings.append((label, lineno, name))
         low = line.lower()
         for idx, term in enumerate(terms, 1):
