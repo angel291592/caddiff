@@ -113,6 +113,13 @@ def _change_facts(entry, t):
     clusters = entry.get("cluster_details") or []
     if clusters:
         facts.append((t("report.field.clusters"), str(len(clusters))))
+    # 降级说明（坑 J2）：布尔算不出对称差时高亮的是**整个零件**，不是精确的增减料范围。
+    # 不写这一行，读者会把"整件都变了"当成真实结论。
+    if entry.get("degraded_reason"):
+        facts.append((t("report.field.highlight"),
+                      t("report.degraded.whole_part",
+                        reason=t("report.skipped.reason."
+                                 + _reason_key(entry["degraded_reason"])))))
     size = entry.get("diff_bbox_size_mm")
     if size:
         try:
@@ -145,7 +152,8 @@ def _honesty_items(summary, t):
 
 def _reason_key(reason):
     """把机器枚举映射到文案键。未知原因归到 other，不猜语义。"""
-    known = {"user_skipped", "no_shape", "too_complex", "timeout", "assembly_container"}
+    known = {"user_skipped", "no_shape", "too_complex", "timeout", "assembly_container",
+             "boolean_no_result"}
     if reason in known:
         return reason
     if reason.startswith("brep_export_failed"):

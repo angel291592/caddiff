@@ -1003,6 +1003,29 @@ def precompute_shapes(actual_diffs, label_map, old_label_map):
                 results[key] = entry
                 continue
 
+            if change.get("highlight_mode") == "whole_part":
+                # 降级路径：geom_diff 那边布尔算不出对称差（OCCT 对近乎重合的形状返回
+                # 退化结果，见坑 J2），但体积差已证明零件被改过。这里把两版零件【本体】
+                # 当作 removed/added——语义成立：旧版整件在新版不再原样存在、新版整件是
+                # "新的形状"，于是高亮区域是整个零件。比精确的增减料范围粗，但差异不丢、
+                # 也不静默（degraded_reason 落进渲染记录与报告）。
+                rem_cl, rem_drop = split_clusters(old_shape)
+                add_cl, add_drop = split_clusters(new_shape)
+                clusters = ([dict(c, role="removed") for c in rem_cl]
+                            + [dict(c, role="added") for c in add_cl])
+                clusters.sort(key=lambda c: -c["volume"])
+                for i, c in enumerate(clusters, 1):
+                    c["index"] = i
+                entry.update({"old_shape": old_shape, "new_shape": new_shape,
+                              "removed": old_shape, "added": new_shape,
+                              "diff_shape": new_shape, "clusters": clusters,
+                              "degraded_reason": change.get("degraded_reason")})
+                print(f"  {bn}: DEGRADED highlight (whole part) — "
+                      f"{change.get('degraded_reason')}; "
+                      f"V_old={old_shape.Volume:.4f} V_new={new_shape.Volume:.4f}")
+                results[key] = entry
+                continue
+
             t0 = time.time()
 
             removed = old_shape.cut(new_shape)
@@ -1130,6 +1153,10 @@ def render_one(md, av, doc, output_dir, bn, idx, change, bbox,
     rec = {"base_name": bn, "instance_index": change["instance_index"],
            "change_type": change.get("change_type", "shape_changed"),
            "label_old": label_old, "label_new": label_new}
+    # 降级标记（坑 J2）：布尔算不出对称差时高亮的是整个零件而非精确增减料范围，
+    # 必须一路传到 manifest 与报告——读者有权知道这处高亮是粗的。
+    if change.get("degraded_reason"):
+        rec["degraded_reason"] = change["degraded_reason"]
 
     clusters = pre.get("clusters") or []
     rec["cluster_count"] = len(clusters)

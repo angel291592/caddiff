@@ -65,6 +65,8 @@ _LANGS = {
         "report.field.removed": "Material removed",
         "report.field.added": "Material added",
         "report.field.clusters": "Separate clusters",
+        "report.field.highlight": "Highlighted region",
+        "report.degraded.whole_part": "whole part — {reason}",
         "report.field.diff_extent": "Changed extent",
         "report.field.view": "Viewpoint",
         "report.view.internal": "inside the assembly — located by the red box only",
@@ -78,6 +80,9 @@ _LANGS = {
         "report.skipped.reason.brep_export_failed": "BREP export for the boolean worker failed",
         "report.skipped.reason.worker_crashed": "the boolean worker crashed",
         "report.skipped.reason.worker_failed": "the boolean worker failed",
+        "report.skipped.reason.boolean_no_result": (
+            "symmetric difference unavailable — OCCT returned a degenerate result for two "
+            "nearly coincident shapes"),
         "report.skipped.reason.assembly_container": (
             "assembly container — its shape is the union of its children, so it is not "
             "counted separately"),
@@ -116,6 +121,8 @@ _LANGS = {
         "report.field.removed": "减少材料",
         "report.field.added": "新增材料",
         "report.field.clusters": "差异簇数量",
+        "report.field.highlight": "高亮范围",
+        "report.degraded.whole_part": "整个零件——{reason}",
         "report.field.diff_extent": "差异范围",
         "report.field.view": "视角",
         "report.view.internal": "位于装配体内部——仅以红框定位",
@@ -129,6 +136,7 @@ _LANGS = {
         "report.skipped.reason.brep_export_failed": "为布尔子进程导出 BREP 失败",
         "report.skipped.reason.worker_crashed": "布尔子进程崩溃",
         "report.skipped.reason.worker_failed": "布尔子进程执行失败",
+        "report.skipped.reason.boolean_no_result": "对称差算不出来——两个近乎重合的形状让 OCCT 返回了退化结果",
         "report.skipped.reason.assembly_container": "装配体容器——其形状是全部子件的并集，不单独计数",
         "report.skipped.reason.other": "未参与比对",
         "report.filtered": "被筛除——体积变化 {pct}% 低于 {threshold}% 阈值",

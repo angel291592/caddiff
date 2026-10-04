@@ -321,9 +321,11 @@ PART-C 两簇中心仅相距约 2mm，特写图上投影必然重叠，画两个
 
 **J2. OCCT 布尔在「两个几乎完全重合的复杂 STEP 形状」之间会静默返回退化结果。**
 实测同一零件的两个版本（28 面，体积差 10.4mm³，切掉 50% 体积也一样）：`common` 返回 **-265.07**（负体积）、`fuse` 得空形状且 bbox 为 **±DBL_MAX**、`cut` 结果比原形状还大（21188 > 20923）。同两个零件的形状本身没问题（`common(self,self)` 正常、与 0.5mm 平移副本布尔正常、与不相干零件布尔正常）——**只在近重合档退化**。合成样例（`Part.makeBox` 原生构造）不受影响，所以此前一直没暴露。
-**当前处置（只做诚实性，未修检出）**：`boolean_worker.py` 检出退化结果（`diff.isNull()` 或 bbox 三边长非有限）即返回 `ok:false, error:"boolean_no_result"`，父进程记入 `skipped_parts` 并打印——**不再把「算不出来」静默当成「无差异」**。
+**当前处置（已实施）**：分两层。
+① **诚实性**：`boolean_worker.py` 检出退化结果（`diff.isNull()` 或 bbox 三边长非有限）即返回 `ok:false, error:"boolean_no_result"`，父进程记入 `skipped_parts` 并打印——不再把「算不出来」静默当成「无差异」。
+② **降级判定（不丢差异）**：`geom_diff` 在布尔失败但**体积差已超容差**时，照报 `shape_changed`，带 `highlight_mode:"whole_part"` 与 `degraded_reason`；`render_diff.precompute_shapes` 据此把**两版零件本体**当作 `removed`/`added`（语义成立：旧版整件在新版不再原样存在、新版整件是"新的形状"），于是走 `render_one` 的正常路径，高亮**整个零件**。`degraded_reason` 一路传到 `summary.parts_with_diff` 与报告（`report.field.highlight` = "whole part — …"）。
+why 只在体积差超容差时降级：纯 bbox 变化（如旋转）没有体积证据，那种情况仍按算不出来记录，**不猜**。代价是 `removed_volume`/`added_volume` 在降级条目里等于整件体积而非真实增减料——降级标记就是为让读者知道这一点而存在的。
 ⚠️ 判据必须用 **`XLength`**（= XMax−XMin = inf），不能只判 `XMin`/`XMax` 是否 finite：退化 bbox 的两端是 ±DBL_MAX，是**有限值**，只判端点拦不住（已踩：第一版修复实测仍然静默通过）。
-⚠️ **仍未解决**：该零件的几何差异依然检不出，且退出码仍为 0。`classify_change` 其实已经由体积差证明它 `shape_changed`，所以正确方向是**布尔失败时降级为「体积差判定 + 整件 bbox 高亮」**并标注降级原因，而不是只记跳过——这需要渲染层配合，属独立工作项。
 
 **I5. 子串断言要防"更长的数字"假失败。**
 验证脚本里查 `"0.00 mm³" not in text` 来确认"没有误导性的零增减料行"，会被 `800.00 mm³`（零件体积）命中而假失败（本轮实测踩到）。改为精确匹配字段标签（`"减少材料" not in text`）。同类：任何对数字做子串匹配的断言都要想一遍"有没有更长的数会含它"。

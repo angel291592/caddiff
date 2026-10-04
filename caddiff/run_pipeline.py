@@ -193,6 +193,10 @@ def build_summary(bom_json, geom_json, render_manifest, label_old="", label_new=
             item["removed_volume"] = e.get("removed_volume")
             item["added_volume"] = e.get("added_volume")
             item["cluster_count"] = e.get("cluster_count")
+            # 降级标记（坑 J2）必须进 summary：布尔算不出对称差时高亮的是整个零件，
+            # 读者若不知道就会把"整件都变了"当成真实结论。只在真的降级时才出现。
+            if e.get("degraded_reason"):
+                item["degraded_reason"] = e["degraded_reason"]
         summary["parts_with_diff"].append(item)
 
     try:

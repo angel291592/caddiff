@@ -532,6 +532,37 @@ def run(bom_json_path, stp_old, stp_new, out_json, skip_parts=None,
             # 布尔一律走子进程 + 硬超时：面数闸门拦不住所有病态零件（见 symmetric_diff_isolated）
             payload, err = symmetric_diff_isolated(old_shape, new_shape, boolean_timeout)
             if payload is None:
+                # 布尔算不出对称差。但 `classify_change` 判定 shape_changed 的前提就是
+                # 「体积或 bbox 已超容差」——**体积差本身就是形状改变的充分证据**，不能
+                # 因为量不出高亮范围就把这处差异丢掉。实测：真实公开装配体的零件被削掉
+                # 10.4mm³ 时 OCCT 对两个近乎重合的形状返回退化结果，整处差异静默消失、
+                # 退出码仍为 0（CI 闸门会放行真实改动）。
+                # 降级：高亮**整个零件**（render 层按 highlight_mode=whole_part 处理），
+                # 并把降级原因写进条目——粗，但不丢、不静默。
+                # 只在体积差确实超容差时降级：纯 bbox 变化（如旋转）没有体积证据，
+                # 那种情况仍按算不出来记录，不猜。
+                vol_delta = abs(old_shape.Volume - new_shape.Volume)
+                if err == "boolean_no_result" and vol_delta > VOLUME_TOLERANCE:
+                    bb_new = new_shape.BoundBox
+                    entry["geometric_changes"].append({
+                        "instance_index": i,
+                        "change_type": "shape_changed",
+                        "old_label": old_obj.Label,
+                        "new_label": new_obj.Label,
+                        "old_volume": old_shape.Volume,
+                        "new_volume": new_shape.Volume,
+                        "volume_delta": vol_delta,
+                        "volume_delta_pct": (vol_delta / new_shape.Volume * 100.0
+                                             if new_shape.Volume > 0 else None),
+                        "bbox": get_bbox_dict(bb_new),
+                        "bbox_old": get_bbox_dict(old_shape.BoundBox),
+                        "diff_bbox_size_mm": [bb_new.XLength, bb_new.YLength, bb_new.ZLength],
+                        "highlight_mode": "whole_part",
+                        "degraded_reason": err,
+                        "parent_chain": get_parent_chain(old_obj),
+                    })
+                    print(f"[degraded {err}] ", end="", flush=True)
+                    continue
                 skipped_parts.append({"name": bn, "instance_index": i,
                                       "reason": err, "faces": n_faces})
                 entry["note"] = "boolean %s, skipped" % err
