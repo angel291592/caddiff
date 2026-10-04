@@ -81,6 +81,41 @@ way. If a change genuinely cannot be covered without a real FreeCAD interpreter,
 say so in the pull request and describe exactly what you ran by hand and what you
 observed. "It should work" is not a verification result.
 
+## Before you commit: enable the sensitive-data gate
+
+`.gitignore` only blocks file names it already knows about. It does nothing about the
+realistic accident: pasting a credential, a customer part name, or an internal path into a
+perfectly normal-looking file. This project has had exactly that happen, so there is an
+automated gate:
+
+```console
+$ git config core.hooksPath .githooks   # once per clone
+```
+
+That wires up two hooks:
+
+| Hook | Scope | Why that scope |
+|---|---|---|
+| `pre-commit` | the staged files | fast enough to run on every commit |
+| `pre-push` | the worktree **and every blob in the history** | after a push it is out, and deleting the line in a later commit does not take it out of the history |
+
+CI runs the same check over a full clone, so a skipped hook is caught at the PR. The gate
+is **fail-closed**: if it cannot find a working Python interpreter it refuses the commit
+rather than passing silently. `--no-verify` is the deliberate way out, and it leaves a
+trace.
+
+It will also check against a project-specific term list if one is present locally at
+`_internal/sensitive_terms.txt`. That file is gitignored on purpose — a blocklist of
+customer names committed to a public repository would itself be the leak. Design notes:
+`tools/scan_sensitive.py`.
+
+Run it by hand at any time:
+
+```console
+$ python tools/scan_sensitive.py            # worktree + full history
+$ python tools/scan_sensitive.py --staged   # what a commit would add
+```
+
 ## Code style
 
 - **Surgical changes.** Change only what the issue or pull request requires. Do

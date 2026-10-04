@@ -37,6 +37,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 脱敏闸门：安全类检查，放最前面——它最便宜（秒级），也最不能跳过。
+  # 设计说明见 tools/scan_sensitive.py 的 docstring（唯一真相源，此处不重述）。
+  sensitive:
+    name: sensitive-data gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # ⚠️ 必须是全量克隆：闸门要扫**全部提交里出现过的每个 blob**。
+          # 浅克隆（默认 fetch-depth: 1）会让它只看得到最后一个提交，
+          # 于是「把密钥提交上去、再在下一个提交里删掉」这种事故会静默通过。
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # 本仓的客户专属词表在 _internal/（gitignore），CI 上不存在——这是**正确**的：
+      # 公开仓里本来就不该出现那些词。CI 只跑通用层（凭据形态 / 文件类型 / 绝对路径）。
+      - name: Run the gate over the worktree and the full git history
+        run: python tools/scan_sensitive.py
+
   unit:
     name: unit (offline, no FreeCAD)
     runs-on: ubuntu-latest
@@ -53,15 +76,12 @@ jobs:
 
       # Runtime dependencies are empty on purpose (pyproject.toml): geometry and
       # rendering live in the image, never in the system Python. `[pptx]` is the
-      # one optional extra.
+      # one optional extra; `[test]` carries pytest, so the command below and the
+      # dependency declaration cannot drift apart.
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[pptx]"
-          # pyproject.toml declares no `test`/`dev` extra yet, so pytest is
-          # installed explicitly here. Adding a `test = ["pytest"]` extra is a
-          # separate change (pyproject.toml is out of scope for this stage).
-          pip install pytest
+          pip install -e ".[test,pptx]"
 
       # Cheap packaging gate: proves the console script and the single source of
       # truth for the version (cadiff/version.py) both survive `pip install -e`.

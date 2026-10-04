@@ -12,7 +12,9 @@ import sys
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 _PKG_DIR = os.path.join(_REPO_ROOT, "caddiff")
+# tools/ 放进来是为了让 test_sensitive_gate.py 能 import 脱敏闸门本身
+_TOOLS_DIR = os.path.join(_REPO_ROOT, "tools")
 
-for _p in (_PKG_DIR, _REPO_ROOT):
+for _p in (_PKG_DIR, _TOOLS_DIR, _REPO_ROOT):
     if _p not in sys.path:
         sys.path.insert(0, _p)

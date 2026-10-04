@@ -1,0 +1,31 @@
+#!/bin/sh
+# 推送闸门：扫工作区 **+ 全部 git 历史**。
+#
+# 为什么推送要扫历史、而不只是暂存区：`git commit` 之后东西还在本地，删掉还能救；
+# `git push` 之后它就出去了，而"删掉那一行再提交一次"**并不会**把它从历史里拿掉。
+# 所以这一关必须看全部提交里出现过的每一个 blob。
+#
+# 这一关是最后一道：过了它就只剩 GitHub 上了。
+#
+# 启用（每个克隆做一次）：git config core.hooksPath .githooks
+# 解释器探测与 fail-closed 的理由见 .githooks/pre-commit 的注释。
+set -u
+
+find_python() {
+    for candidate in python3 python py; do
+        if command -v "$candidate" >/dev/null 2>&1 &&
+           "$candidate" -c "pass" >/dev/null 2>&1; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+PY=$(find_python) || {
+    echo "✖ 脱敏闸门无法运行：找不到可用的 Python 解释器。" >&2
+    echo "  装一个 Python，或用 'git push --no-verify' 显式跳过（CI 仍会检查）。" >&2
+    exit 1
+}
+
+exec "$PY" tools/scan_sensitive.py

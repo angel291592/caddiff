@@ -1,0 +1,35 @@
+#!/bin/sh
+# 提交闸门：只扫暂存区（毫秒级，不拖慢每次 commit）。
+#
+# 为什么要有它：`.gitignore` 只能拦住"已知的"文件名，拦不住"把密钥粘进一个正常文件"
+# 这类事故——本项目的私有仓就真的发生过硬编码凭据进库、8/8 个提交全带它。
+#
+# 启用（每个克隆做一次）：git config core.hooksPath .githooks
+#
+# 【为什么不用 `command -v python3` 就完事】Windows 上它常命中
+# `AppData/Local/Microsoft/WindowsApps/python3`——那是 Microsoft Store 的**假壳**，
+# 存在、可执行、但一跑就以退出码 49 静默失败。于是钩子看起来"拦住了提交"，实际
+# 闸门一次都没跑过。必须**真的执行一次**才算找到解释器（见 find_python）。
+#
+# 【为什么找不到解释器要 fail-closed】这是安全闸门，静默放行等于没有。真要在没装
+# Python 的机器上提交，请显式 `git commit --no-verify`——让它留下痕迹，而不是自动失效。
+set -u
+
+find_python() {
+    for candidate in python3 python py; do
+        if command -v "$candidate" >/dev/null 2>&1 &&
+           "$candidate" -c "pass" >/dev/null 2>&1; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+PY=$(find_python) || {
+    echo "✖ 脱敏闸门无法运行：找不到可用的 Python 解释器。" >&2
+    echo "  装一个 Python，或用 'git commit --no-verify' 显式跳过（CI 仍会检查）。" >&2
+    exit 1
+}
+
+exec "$PY" tools/scan_sensitive.py --staged --quiet

@@ -15,8 +15,23 @@
 #
 # 启用：`pip install pre-commit && pre-commit install`
 # 手动全量跑：`pre-commit run --all-files`
-# CI 不跑 pre-commit（ci.yml 跑的是 pytest），这里是本地闸门。
+#
+# 不想装 pre-commit 框架也可以——`.githooks/` 里有等价的纯 shell 钩子：
+#     git config core.hooksPath .githooks
+# 两条路任选其一；CI 无论如何都会跑一遍（ci.yml 的 sensitive job）。
 repos:
+  # 本仓自带的脱敏闸门。**这一条是安全，其余是洁癖**——所以它排在最前面，
+  # 且它是唯一 `always_run` 的（不依赖本次改了哪些文件）。
+  # 设计说明见 tools/scan_sensitive.py 的 docstring（那是唯一真相源，此处不重述）。
+  - repo: local
+    hooks:
+      - id: sensitive-data-gate
+        name: sensitive-data gate (credentials / CAD data / internal terms)
+        entry: python tools/scan_sensitive.py --staged --quiet
+        language: system
+        pass_filenames: false
+        always_run: true
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
