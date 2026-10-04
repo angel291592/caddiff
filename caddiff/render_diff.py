@@ -89,7 +89,11 @@ CONTEXT_TRANSPARENCY = 85
 
 # 整体图的候选视线方向：26个（6面 + 12棱 + 8角）。逐差异扫描全部方向、按综合评分选最优，
 # 替代此前固定的 viewIsometric()——固定视角与特写图同向，差异点常被自身零件挡住。
-# 实测单方向约0.85s（setViewDirection + fitAll + saveImage + 像素统计），26方向约22s/差异。
+# 实测单方向约0.32s：setViewDirection(≈0) + updateGui(0.08) + sleep(0.12) + saveImage(0.10)
+# + 像素统计(0.03)，26方向约8.4s/差异。
+# ⚠️ 曾经是 0.78s/方向（26方向 20s）：那时每个方向都调一次 fitAll，而 fitAll 单次 0.40s、
+# 占总耗时 52%，拟合的却是**不随相机改变的静态几何**。去掉后评分与选向结果逐方向一致——
+# 详见 pick_best_direction 里的实测记录，改回前先读那段。
 VIEW_DIRECTIONS = [
     (f"{x:+d}{y:+d}{z:+d}",
      (x / (x * x + y * y + z * z) ** 0.5,
@@ -903,6 +907,8 @@ def pick_best_direction(av, bbox, tmp_path):
 
     调用方必须先建立好渲染状态（setup_overview_state）；本函数只动相机，不动可见性。
     每个候选方向都要重新投影 bbox——相机变了红框位置也随之变。
+    **但取景（fitAll）只在本函数开头做一次**：bbox 是静态几何，不随相机方向改变，
+    逐方向重拟合是纯浪费——理由与实测见函数体里的注释。
 
     【两级选择，防止选出"有品红但看不懂"的糊团图】
     先在"品红真的看得见（sat_in >= SCORE_MIN_VISIBLE_PX）且画面可读（readability >=
@@ -916,11 +922,21 @@ def pick_best_direction(av, bbox, tmp_path):
     数值上非零但肉眼看不见，会挤掉正确的 fallback 判定。
     """
     rows = []
+    # 扫描前只拟合一次，之后每个方向都不再 fitAll。
+    # why 可以省（实测，不是推断）：`fitAll` 拟合的是**静态几何**——相机方向变了，模型
+    # 包围盒没变，每个方向重新拟合是冗余的。实测单次 fitAll 稳定 0.40s，26 个方向就是
+    # 10.4s（占整个扫描的 52%）；去掉后扫描 20.0s → 8.4s（快 2.4 倍），而**26 个方向的
+    # 评分一个都没变**、选出的最优方向也完全相同（top3 不变）。
+    # why 还要留一次（不能整个删）：`setViewDirection` 会重置相机距离，第一次进入必须
+    # 拟合，否则取景是上一个状态的。
+    # ⚠️ 若日后再动这里：任何「选向结果变了」的迹象都要把这次拟合加回去，并按
+    # examples/expected 重跑渲染基线（选向变了，产出图就会变）。
+    av.fitAll()
+    FreeCADGui.updateGui()
+    time.sleep(0.12)
     for tag, vec in VIEW_DIRECTIONS:
         n_zero = sum(1 for c in vec if abs(c) < 1e-9)
         av.setViewDirection(vec)
-        FreeCADGui.updateGui()
-        av.fitAll()
         FreeCADGui.updateGui()
         time.sleep(0.12)
         size = av.getSize()

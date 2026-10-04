@@ -1,10 +1,10 @@
-# Geometry diff report — v1 → v2
+# Geometry diff report — ? → ?
 
 2 geometric change(s), 0 BOM-level change(s)
 
 ## Geometric changes
 
-### 1. BRACKET — shape changed
+### 1. BRACKET_03 — shape changed
 
 - Volume change: `192.00 mm³`
 - Volume change (%): `15.38 %`
@@ -13,22 +13,22 @@
 - Separate clusters: `1`
 - Changed extent: `4.0 × 12.0 × 4.0 mm`
 
-![BRACKET — shape changed — Overview](images/BRACKET_0_overview_rect.png)
+![BRACKET_03 — shape changed — Overview](images/BRACKET_03_0_overview_rect.png)
 
-![BRACKET — shape changed — Old version, close-up](images/BRACKET_0_closeup_old_rect.png)
+![BRACKET_03 — shape changed — Old version, close-up](images/BRACKET_03_0_closeup_old_rect.png)
 
-![BRACKET — shape changed — New version, close-up](images/BRACKET_0_closeup_new_rect.png)
+![BRACKET_03 — shape changed — New version, close-up](images/BRACKET_03_0_closeup_new_rect.png)
 
-### 2. SLIDER — moved
+### 2. SLIDER_02 — moved
 
 - Translation: `5.00 mm`
 - Changed extent: `10.0 × 10.0 × 8.0 mm`
 
-![SLIDER — moved — Overview](images/SLIDER_1_overview_rect.png)
+![SLIDER_02 — moved — Overview](images/SLIDER_02_1_overview_rect.png)
 
-![SLIDER — moved — Old version, close-up](images/SLIDER_1_closeup_old_rect.png)
+![SLIDER_02 — moved — Old version, close-up](images/SLIDER_02_1_closeup_old_rect.png)
 
-![SLIDER — moved — New version, close-up](images/SLIDER_1_closeup_new_rect.png)
+![SLIDER_02 — moved — New version, close-up](images/SLIDER_02_1_closeup_new_rect.png)
 
 ## Not compared / not resolved
 

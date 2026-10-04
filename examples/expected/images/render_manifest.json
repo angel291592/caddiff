@@ -1,10 +1,10 @@
 [
   {
-    "base_name": "BRACKET",
+    "base_name": "BRACKET_03",
     "instance_index": 0,
     "change_type": "shape_changed",
-    "label_old": "v1",
-    "label_new": "v2",
+    "label_old": "moved_old",
+    "label_new": "moved_new",
     "cluster_count": 1,
     "cluster_details": [
       {
@@ -18,8 +18,8 @@
         ]
       }
     ],
-    "overview": "BRACKET_0_overview.png",
-    "overview_rect": "BRACKET_0_overview_rect.png",
+    "overview": "BRACKET_03_0_overview.png",
+    "overview_rect": "BRACKET_03_0_overview_rect.png",
     "bbox_2d": [
       317,
       188,
@@ -29,10 +29,10 @@
     "rects_overview": [
       {
         "rect": [
-          931,
-          544,
-          1076,
-          806
+          931.0,
+          544.0,
+          1076.0,
+          806.0
         ],
         "labels": [
           1
@@ -48,13 +48,13 @@
     ],
     "overview_view_tag": "-1+0-1",
     "overview_view_score": 0.8,
-    "overview_sat_in": 1152,
+    "overview_sat_in": 1080,
     "overview_sat_out": 0,
     "overview_view_fallback": false,
     "overview_view_readability": 0.8,
-    "overview_ecc": 1.125,
+    "overview_ecc": 1.06,
     "overview_compose": 1.0,
-    "overview_body_pct": 0.2307,
+    "overview_body_pct": 0.2185,
     "overview_axis_dirs": {
       "X": [
         1.0,
@@ -69,8 +69,8 @@
         0.0
       ]
     },
-    "closeup_new": "BRACKET_0_closeup_new.png",
-    "closeup_new_rect": "BRACKET_0_closeup_new_rect.png",
+    "closeup_new": "BRACKET_03_0_closeup_new.png",
+    "closeup_new_rect": "BRACKET_03_0_closeup_new_rect.png",
     "bbox_2d_closeup": [
       150,
       -130,
@@ -80,10 +80,10 @@
     "rects_closeup": [
       {
         "rect": [
-          430,
-          0,
-          1394,
-          431
+          430.0,
+          0.0,
+          1394.0,
+          431.0
         ],
         "labels": [
           1
@@ -91,8 +91,8 @@
       }
     ],
     "magenta_px_closeup_new": 0,
-    "closeup_old": "BRACKET_0_closeup_old.png",
-    "closeup_old_rect": "BRACKET_0_closeup_old_rect.png",
+    "closeup_old": "BRACKET_03_0_closeup_old.png",
+    "closeup_old_rect": "BRACKET_03_0_closeup_old_rect.png",
     "magenta_px_closeup_old": 119056,
     "old_volume": 1439.9999999999998,
     "new_volume": 1248.0,
@@ -127,11 +127,11 @@
     "banner_h": 310
   },
   {
-    "base_name": "SLIDER",
+    "base_name": "SLIDER_02",
     "instance_index": 0,
     "change_type": "moved",
-    "label_old": "v1",
-    "label_new": "v2",
+    "label_old": "moved_old",
+    "label_new": "moved_new",
     "cluster_count": 0,
     "cluster_details": [],
     "removed_volume": 0.0,
@@ -139,57 +139,57 @@
     "translation_mm": 5.0,
     "rotation_deg": 0.0,
     "rotation_detected_by": "placement",
-    "overview": "SLIDER_1_overview.png",
-    "overview_rect": "SLIDER_1_overview_rect.png",
+    "overview": "SLIDER_02_1_overview.png",
+    "overview_rect": "SLIDER_02_1_overview_rect.png",
     "bbox_2d": [
-      244,
-      256,
-      333,
-      346
+      182,
+      190,
+      243,
+      268
     ],
     "rects_overview": [
       {
         "rect": [
-          691,
-          748,
-          1019,
-          1130
+          433.0,
+          550.0,
+          749.0,
+          824.0
         ],
         "labels": []
       }
     ],
     "rect_line_width_px": 12,
-    "magenta_px_overview": 44430,
+    "magenta_px_overview": 39284,
     "overview_view_dir": [
-      0.5774,
-      -0.5774,
-      0.5774
+      0.0,
+      -0.7071,
+      0.7071
     ],
-    "overview_view_tag": "+1-1+1",
-    "overview_view_score": 0.81,
-    "overview_sat_in": 345,
+    "overview_view_tag": "+0-1+1",
+    "overview_view_score": 0.8,
+    "overview_sat_in": 2478,
     "overview_sat_out": 0,
     "overview_view_fallback": false,
-    "overview_view_readability": 0.9391,
-    "overview_ecc": 1.933,
+    "overview_view_readability": 0.8,
+    "overview_ecc": 1.86,
     "overview_compose": 1.0,
-    "overview_body_pct": 0.185,
+    "overview_body_pct": 0.2191,
     "overview_axis_dirs": {
       "X": [
-        0.2614,
-        -0.9652
+        1.0,
+        0.0
       ],
       "Y": [
-        0.9666,
-        -0.2564
+        0.0,
+        1.0
       ],
       "Z": [
-        0.717,
-        0.6971
+        0.0,
+        1.0
       ]
     },
-    "closeup_new": "SLIDER_1_closeup_new.png",
-    "closeup_new_rect": "SLIDER_1_closeup_new_rect.png",
+    "closeup_new": "SLIDER_02_1_closeup_new.png",
+    "closeup_new_rect": "SLIDER_02_1_closeup_new_rect.png",
     "bbox_2d_closeup": [
       169,
       85,
@@ -199,17 +199,17 @@
     "rects_closeup": [
       {
         "rect": [
-          487,
-          235,
-          1340,
-          1118
+          487.0,
+          235.0,
+          1340.0,
+          1118.0
         ],
         "labels": []
       }
     ],
     "magenta_px_closeup_new": 470073,
-    "closeup_old": "SLIDER_1_closeup_old.png",
-    "closeup_old_rect": "SLIDER_1_closeup_old_rect.png",
+    "closeup_old": "SLIDER_02_1_closeup_old.png",
+    "closeup_old_rect": "SLIDER_02_1_closeup_old_rect.png",
     "bbox_2d_closeup_old": [
       102,
       46,
