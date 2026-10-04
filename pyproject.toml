@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "caddiff"
+dynamic = ["version"]
+description = "git diff for CAD assemblies — compare two STEP/STP assemblies and show what changed"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "The caddiff Authors" }]
+keywords = ["cad", "step", "stp", "diff", "freecad", "bom", "assembly", "git", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Manufacturing",
+    # ⚠️ 这里**不能**再写 "License :: OSI Approved :: ..."：
+    # 上面已用 PEP 639 的 license 表达式（`license = "Apache-2.0"`），setuptools ≥77
+    # 把「license 表达式 + license classifier 共存」视为硬错误，会让 `pip install -e .`
+    # 直接 InvalidConfigError。许可证的单一真相源是 LICENSE 文件 + license 表达式。
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Version Control :: Git",
+]
+
+# 核心**零第三方依赖**：编排层、BOM 对齐、报告生成只用标准库。
+# 几何/渲染所需的 FreeCAD、numpy、Pillow 由**镜像**或本机 FreeCAD 安装提供，
+# 不能写进这里——它们必须与 FreeCAD 自带的 Python 版本绑定，装到系统 Python 里没用。
+dependencies = []
+
+[project.optional-dependencies]
+# PPT 是可选导出路径（决策 D-006）。不装这个 extra，`--pptx` 会给出明确的安装提示。
+pptx = ["python-pptx>=0.6.23"]
+# 测试依赖单独成组，CI 只需 `pip install -e ".[test]"`，不必在 workflow 里手写包名。
+test = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/OWNER/REPO"
+Issues = "https://github.com/OWNER/REPO/issues"
+
+[project.scripts]
+caddiff = "caddiff.cli:main"
+
+[tool.setuptools]
+packages = ["caddiff"]
+
+[tool.setuptools.dynamic]
+version = { attr = "caddiff.version.__version__" }
+
+[tool.pytest.ini_options]
+# 常驻回归测试只放 tests/unit（见 AGENTS.md §7）；tests/_scratch 是一次性脚本，不入库。
+testpaths = ["tests/unit"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+# 只开「必然出错」类规则，不开风格类——风格类噪声会把真信号淹掉（见 AGENTS.md §7）。
+select = ["E9", "F63", "F7", "F82"]

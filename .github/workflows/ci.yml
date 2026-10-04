@@ -1,0 +1,195 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# cadiff CI — two jobs with deliberately different appetites.
+#
+#   unit : pure-Python regression suite. No FreeCAD, no container, no network
+#          beyond pip, seconds to run. Runs on every PR and every push.
+#   e2e  : end-to-end smoke against the *prebuilt* container image. Pulls
+#          ~1.5–2 GB and renders for ~80 s, so it is opt-in (see the `if:`).
+#
+# WHY WE NEVER BUILD THE IMAGE ON A GITHUB-HOSTED RUNNER
+#   1. Disk — a public runner has ~14 GB of SSD. FreeCAD + OpenCASCADE + the apt
+#      toolchain does not fit next to the base image; a build dies mid-way and
+#      the failure surfaces as an unrelated "no space left on device" in some
+#      layer, not as a clean error.
+#   2. Time — building FreeCAD from source takes tens of minutes per run. Pulling
+#      the prebuilt image takes a couple of minutes and is cached by the runner.
+#   3. Compliance (AGENTS.md §6) — the image bundles LGPL/GPL binaries. Those are
+#      produced by deploy/Dockerfile at build time and must never be committed to
+#      git. CI's job is to *consume* a published image, never to produce one.
+#   The image is built and pushed outside CI (maintainer machine or a registry
+#   build), tagged `edge` from `main`.
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege: nothing in this workflow writes back to the repository.
+# (release-please has its own workflow with exactly the permissions it needs.)
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: unit (offline, no FreeCAD)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      # 3.12 matches the interpreter the runtime image uses for the orchestrator
+      # (deploy/Dockerfile is `FROM ubuntu:24.04`, whose `python3` is 3.12), while
+      # pyproject.toml declares `requires-python = ">=3.9"`.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # Runtime dependencies are empty on purpose (pyproject.toml): geometry and
+      # rendering live in the image, never in the system Python. `[pptx]` is the
+      # one optional extra.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[pptx]"
+          # pyproject.toml declares no `test`/`dev` extra yet, so pytest is
+          # installed explicitly here. Adding a `test = ["pytest"]` extra is a
+          # separate change (pyproject.toml is out of scope for this stage).
+          pip install pytest
+
+      # Cheap packaging gate: proves the console script and the single source of
+      # truth for the version (cadiff/version.py) both survive `pip install -e`.
+      - name: Smoke-check the console entry point
+        run: cadiff --version
+
+      # tests/unit/ is the permanent regression suite (AGENTS.md §7): no network,
+      # no FreeCAD, no external API — it must stay green while fully offline.
+      # The command is strict on purpose: a missing tests/unit/ fails with pytest's
+      # exit code 4, because a green CI must mean the suite actually ran.
+      - name: Run unit tests
+        run: pytest tests/unit
+
+  e2e:
+    name: e2e smoke (prebuilt image)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Two independent reasons to keep this off the default PR path:
+    #   * the image is ~1.5–2 GB; pulling it on every PR push is pure waste, and
+    #     `edge` only tracks `main`, so a PR would test the wrong revision;
+    #   * until the repository is published the image does not exist at all, and
+    #     a permanently-red check gets ignored — worse than a visible skip.
+    # `vars.IMAGE_AVAILABLE` is the switch. Enable it once the image is published:
+    #     gh variable set IMAGE_AVAILABLE --body true
+    # The job then runs on every push to main (post-merge, so an unpublished image
+    # can never block a PR) and on manual dispatch. Manual dispatch always runs.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.IMAGE_AVAILABLE == 'true')
+
+    env:
+      # 发布前替换（placeholder）：owner/repo 与镜像地址均未最终确定。
+      # TODO(publish): replace OWNER/REPO, then pin a digest instead of `edge`
+      # once the image is stable.
+      IMAGE: ghcr.io/OWNER/REPO:edge
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Public ghcr packages need no login. If the package is private, add a
+      # `docker login ghcr.io` step (GITHUB_TOKEN can read packages of the same
+      # repo) before this one. Pulling explicitly keeps the 2 GB fetch in its own
+      # log section, so a registry problem never looks like a cadiff failure.
+      - name: Pull the prebuilt image
+        run: docker pull "$IMAGE"
+
+      # The fixture pair is synthetic and generated by cadiff/make_moved_fixture.py:
+      # BASEPLATE unchanged, SLIDER moved 5 mm, BRACKET cut by 192 mm³.
+      # TODO: examples/fixtures/ is created in a later stage (see README "Benchmarks").
+      - name: Run cadiff diff on the synthetic fixture pair
+        id: diff
+        run: |
+          # `cadiff diff` exits 1 when it finds differences — here that IS the
+          # success case, so the exit code is captured instead of aborting the
+          # step (bash runs with -e in Actions).
+          set +e
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/data" \
+            -w /data \
+            "$IMAGE" \
+            diff /data/examples/fixtures/moved_old.stp /data/examples/fixtures/moved_new.stp \
+                 -o /data/report --lang en
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" -ne 1 ]; then
+            echo "::error::expected exit code 1 (differences found) on the moved fixture, got $code (2 = execution failure, 0 = no differences detected)"
+            exit 1
+          fi
+
+      # Asserts the product contract, not just "the command ran": the artifacts
+      # exist, the manifest says there are differences, and the manifest agrees
+      # with the exit code (AGENTS.md §3 — 1 must never mean "crashed").
+      - name: Assert artifacts and manifest contract
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          out = "report"
+          expected_geometry_diffs = 2  # fixture: SLIDER moved + BRACKET shape_changed
+
+          problems = []
+          for name in ("diff_manifest.json", "report.html", "report.md"):
+              if not os.path.isfile(os.path.join(out, name)):
+                  problems.append(f"missing artifact: {out}/{name}")
+
+          images_dir = os.path.join(out, "images")
+          pngs = sorted(
+              f for f in os.listdir(images_dir)
+              if f.lower().endswith(".png")
+          ) if os.path.isdir(images_dir) else []
+          if not pngs:
+              problems.append(f"no PNG in {images_dir}/")
+
+          manifest_path = os.path.join(out, "diff_manifest.json")
+          summary = {}
+          if os.path.isfile(manifest_path):
+              with open(manifest_path, encoding="utf-8") as fh:
+                  manifest = json.load(fh)
+              summary = manifest.get("summary", {})
+              if not summary.get("has_differences"):
+                  problems.append("summary.has_differences is false, but the run exited 1")
+              got = summary.get("geometry_diff_count")
+              if got != expected_geometry_diffs:
+                  problems.append(
+                      f"summary.geometry_diff_count is {got!r}, expected {expected_geometry_diffs} "
+                      "(if the fixture changed on purpose, update this number and the README benchmark table)"
+                  )
+
+          print(f"images     : {len(pngs)} PNG -> {pngs}")
+          print(f"summary    : {json.dumps(summary, ensure_ascii=False, sort_keys=True)}")
+
+          for problem in problems:
+              print(f"::error::{problem}")
+          sys.exit(1 if problems else 0)
+          PY
+
+      # The assertion step above is the gate; this upload exists so a human can
+      # open the actual report when the gate goes red. `if: always()` keeps the
+      # evidence available for a failed run.
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cadiff-report
+          path: report/
+          if-no-files-found: warn
+          retention-days: 14

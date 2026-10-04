@@ -1,0 +1,77 @@
+name: Feature request
+description: Propose a capability, or argue that something in the "not doing" list should change.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Start from the engineering problem, not the feature
+
+        This project optimises for one job: **"two revisions of an assembly went in —
+        what changed?"** A proposal that names the decision you cannot make today gets a
+        useful answer; a proposal that names an API usually gets a redesign.
+
+        Before filing, please read the **"What this does not do"** section of `README.md`.
+        Some of what looks like a missing feature is a deliberate boundary, and saying so
+        is the whole answer — see the last question below.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What engineering problem are you trying to solve?
+      description: |
+        The decision or the work this would unblock, and what happens today without it.
+        Concrete beats general: "we cannot tell whether the bracket moved or was
+        re-modelled before we release a revision" is worth more than "better diffing".
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How do you work around it today?
+      description: |
+        A manual step, another tool, a script, or nothing at all ("we don't check this").
+        This is the honest measure of how much the feature is worth.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Is this inside the documented "not doing" list?
+      description: |
+        The README states these boundaries explicitly. Selecting one is not a rejection —
+        it is the fastest way to get a straight answer about whether the boundary should
+        move, and why it was drawn where it is.
+      options:
+        - Free-form surface tolerance analysis / point-cloud deviation
+        - GD&T annotation and drawing-level semantics
+        - Very large assemblies (the render step is serial and already takes minutes)
+        - Merging or editing models (cadiff reports; it does not merge)
+        - A hosted service / uploading my models somewhere
+        - None of these
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: shape
+    attributes:
+      label: What would a useful result look like?
+      description: |
+        Optional, but helpful: the output you would want (a field in `diff_manifest.json`,
+        an extra image, a new exit code), and how you would use it in CI.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I read the "What this does not do" section of the README before filing this.
+          required: true
+        - label: This request contains no customer data, part names or model excerpts.
+          required: true

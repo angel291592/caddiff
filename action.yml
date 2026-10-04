@@ -1,0 +1,195 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# caddiff — GitHub Action (composite).
+#
+# WHY COMPOSITE + `docker run` INSTEAD OF A DOCKER ACTION
+#   A Docker action would rebuild the FreeCAD/OpenCASCADE image layer on every
+#   job (tens of minutes, and it does not fit in a runner's disk budget). This
+#   action instead pulls the *prebuilt* image and runs it — same strategy as
+#   .github/workflows/ci.yml. `image:` is an input so a caller can pin a digest.
+#
+# KNOWN LIMITATIONS — not hidden, not fixed yet:
+#   1. NO PULL REQUEST COMMENT. Rendering a diff image into a PR comment needs the
+#      image to be hosted somewhere (artifact + link, a dedicated `caddiff-assets`
+#      branch, or a release asset). Until that exists, this action only uploads
+#      the report directory as a workflow artifact. The Markdown report is
+#      produced (`report.md`) precisely so a comment step can be added later.
+#   2. FORK PULL REQUESTS CANNOT COMMENT. `GITHUB_TOKEN` is read-only for
+#      `pull_request` events coming from a fork, so any comment/review step would
+#      fail there. A maintainer-side fix (a `workflow_run`-triggered workflow on
+#      the base repo, or `pull_request_target` with a strict checkout policy) is
+#      required; it is deliberately out of scope here.
+#
+# 发布前替换（placeholder）: `OWNER/REPO` in the default `image:` below.
+# TODO(publish): replace OWNER/REPO with the real owner/repo before publishing.
+#
+# EXIT CODES: `caddiff diff` exits 1 when differences ARE found — that is a result,
+# not a failure. The run step captures the exit code instead of letting the step
+# fail, and only exit code 2 (execution failure) fails the action.
+#
+# USAGE
+#   - uses: OWNER/REPO@v0.1.0
+#     id: caddiff
+#     with:
+#       old: models/base.stp
+#       new: models/pr.stp
+#   - if: steps.caddiff.outputs.has-differences == 'true'
+#     run: echo "::warning::${{ steps.caddiff.outputs.diff-count }} CAD change(s) detected"
+# ─────────────────────────────────────────────────────────────────────────────
+name: 'caddiff — visual diff for CAD assemblies'
+description: 'Compare two STEP/STP assemblies in a prebuilt container image and upload a visual diff report. Exit code 1 means "differences found", not failure.'
+
+author: 'The caddiff Authors'
+
+branding:
+  icon: 'git-compare'
+  color: 'blue'
+
+inputs:
+  old:
+    description: 'Old STEP/STP file, as a path relative to the repository root.'
+    required: true
+  new:
+    description: 'New STEP/STP file, as a path relative to the repository root.'
+    required: true
+  out:
+    description: 'Output directory for the report, relative to the repository root.'
+    required: false
+    default: 'caddiff-report'
+  image:
+    description: 'Prebuilt caddiff container image to run. Pin a tag or digest for reproducible CI.'
+    required: false
+    # 发布前替换（placeholder）。
+    default: 'ghcr.io/OWNER/REPO:edge'
+  args:
+    description: 'Extra arguments appended to `caddiff diff` (e.g. "--min-diff-pct 0.1 --skip-parts PART-B").'
+    required: false
+    default: ''
+  lang:
+    description: 'Language of the generated report text: "en" (default) or "zh".'
+    required: false
+    default: 'en'
+
+outputs:
+  has-differences:
+    description: '"true" when at least one BOM or geometry difference was detected.'
+    value: ${{ steps.manifest.outputs.has-differences }}
+  diff-count:
+    description: 'Number of differences: summary.geometry_diff_count + summary.bom_diff_count.'
+    value: ${{ steps.manifest.outputs.diff-count }}
+  report-dir:
+    description: 'Absolute path of the report directory on the runner.'
+    value: ${{ steps.manifest.outputs.report-dir }}
+
+runs:
+  using: composite
+  steps:
+    # Pulling explicitly keeps a 2 GB fetch in its own log section, so a registry
+    # problem never looks like a caddiff failure. Public ghcr packages need no
+    # login; for a private package add a `docker login ghcr.io` step before this
+    # action (GITHUB_TOKEN can read packages of the same repository).
+    - name: Pull the caddiff image
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+      run: docker pull "$IMAGE"
+
+    - name: Run caddiff diff
+      id: run
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        OLD: ${{ inputs.old }}
+        NEW: ${{ inputs.new }}
+        OUT: ${{ inputs.out }}
+        # Not named LANG: that variable is the locale and shadowing it breaks tools.
+        REPORT_LANG: ${{ inputs.lang }}
+        EXTRA_ARGS: ${{ inputs.args }}
+      run: |
+        # The image's ENTRYPOINT is the caddiff CLI itself (see deploy/Dockerfile),
+        # so the subcommand and its arguments are passed straight through.
+        # `set +e` around the call: exit code 1 means "differences found" and must
+        # not abort the step (Actions runs bash with -e).
+        #
+        # The container runs as root (the Dockerfile declares no USER), so the files
+        # it writes into $GITHUB_WORKSPACE/$OUT are root-owned. Reading them back in
+        # this job is fine (upload-artifact runs as root too), but a later step that
+        # tries to modify or delete them needs `sudo`.
+        set +e
+        # shellcheck disable=SC2086  # EXTRA_ARGS must word-split into separate flags
+        docker run --rm \
+          -v "$GITHUB_WORKSPACE:/data" \
+          -w /data \
+          "$IMAGE" \
+          diff "/data/$OLD" "/data/$NEW" -o "/data/$OUT" --lang "$REPORT_LANG" $EXTRA_ARGS
+        code=$?
+        set -e
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+        if [ "$code" -eq 2 ]; then
+          echo "::error::caddiff failed to run (exit code 2: bad input, subprocess timeout or crash). The report is incomplete or absent."
+          exit 1
+        fi
+        if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
+          echo "::error::unexpected exit code $code (contract: 0 = no differences, 1 = differences found, 2 = failure)"
+          exit 1
+        fi
+
+    # Reads the machine contract instead of scraping stdout. diff_manifest.json is
+    # the same file `caddiff diff` used to decide its own exit code, so the two must
+    # agree — a disagreement means the contract is broken and neither can be trusted.
+    - name: Publish outputs from diff_manifest.json
+      id: manifest
+      shell: bash
+      env:
+        OUT: ${{ inputs.out }}
+        EXIT_CODE: ${{ steps.run.outputs.exit_code }}
+      run: |
+        python3 - <<'PY' >> "$GITHUB_OUTPUT"
+        import json
+        import os
+        import sys
+
+        out = os.environ["OUT"]
+        report_dir = os.path.join(os.environ["GITHUB_WORKSPACE"], out)
+        manifest_path = os.path.join(report_dir, "diff_manifest.json")
+
+        if not os.path.isfile(manifest_path):
+            print(
+                f"::error::no diff_manifest.json in {report_dir} — caddiff did not finish",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        with open(manifest_path, encoding="utf-8") as fh:
+            summary = json.load(fh)["summary"]
+
+        has_differences = bool(summary["has_differences"])
+        diff_count = int(summary["geometry_diff_count"]) + int(summary["bom_diff_count"])
+        exit_code = int(os.environ["EXIT_CODE"])
+
+        if has_differences != (exit_code == 1):
+            print(
+                "::error::manifest/exit-code mismatch: "
+                f"summary.has_differences={has_differences} but exit code={exit_code}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        print(f"has-differences={'true' if has_differences else 'false'}")
+        print(f"diff-count={diff_count}")
+        print(f"report-dir={report_dir}")
+        PY
+
+    # The report is the deliverable: without this, a green run leaves the caller
+    # with nothing to look at. `if: always()` keeps the evidence when the run above
+    # failed. Limitation 1 in the header: this action does not comment on the PR.
+    # NOTE: the artifact name is fixed, and upload-artifact rejects duplicate names
+    # within one workflow run — two invocations in the same job need distinct
+    # artifact names (not configurable here yet).
+    - name: Upload the report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: caddiff-report
+        path: ${{ inputs.out }}
+        if-no-files-found: warn

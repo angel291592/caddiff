@@ -1,0 +1,45 @@
+# Docker 构建上下文排除清单。
+# ⚠️ 必须与 .gitignore 保持同一套排除意图：构建上下文里出现的东西就等于「发出去过」，
+# 而 CAD 衍生报告（pptx/png/json）内部含明文零件名——这是实测过的泄露路径（见 _internal/AGENTS.internal.md S-3）。
+
+# —— 版本控制与内部资料 ——
+.git
+.github
+_internal/
+tests/_scratch/
+
+# —— 凭据（绝不进上下文）——
+.env
+.env.*
+*.key
+*.pem
+.vision_key
+.model_env
+
+# —— 运行产物：含零件名的报告与图 ——
+out/
+report/
+*.pptx
+examples/**/out/
+examples/**/*.pptx
+*.db
+
+# —— 一次性脚本与本地工具配置（含本机绝对路径）——
+.vscode/
+.idea/
+.claude/
+.cursor/
+.mcp.json
+.code-review-graph/
+
+# —— Python 缓存 ——
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

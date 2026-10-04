@@ -1,0 +1,38 @@
+// caddiff dev container —— 目标是「克隆完就能跑纯 Python 部分」，不是「克隆完就能出差异图」。
+//
+// 取舍（这是本文件唯一重要的事）：
+//   1. 基础镜像按要求用 `base:ubuntu-24.04`，它**不带 Python**，所以用官方 python feature
+//      补一个解释器（与镜像内 ubuntu:24.04 的 python3 同为 3.12）。
+//   2. **绝不在 devcontainer 里编译 FreeCAD。** 从源码构建要十几分钟，容器每次重建都要重付
+//      这笔钱，TTFI 直接崩掉；而且 FreeCAD 的 Part/Gui 是绑定其自带 Python 的二进制扩展，
+//      pip 装不到系统 Python 里（见 docs/pipeline.md「环境约束」）。
+//      所以容器只负责：CLI 编排、BOM 对齐、报告生成、`pytest tests/unit`。
+//      几何/渲染请用官方镜像跑（README 首屏与 docs/pipeline.md 都有这条命令）：
+//        docker run --rm -v "$PWD:/data" ghcr.io/OWNER/REPO:edge \
+//          diff /data/old.stp /data/new.stp -o /data/report
+//      OWNER/REPO 是占位符，发布前替换。
+//   3. 故意**不挂 docker socket / 不开 docker-in-docker**：那等于把宿主 docker 权限交给容器，
+//      默认不该开。上面的命令在宿主（或 CI job）里跑即可。
+{
+  "name": "caddiff (pure-Python parts; geometry needs the Docker image)",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    // base 镜像没有 Python，这一条补上；版本与运行镜像里的 python3 对齐。
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12"
+    }
+  },
+  // 核心依赖为空（pyproject.toml），[pptx] 是唯一可选 extra。
+  // 若该 feature 装的是共享解释器、非 root 用户写入 site-packages 报权限错误，
+  // 改用 `pip install --user -e '.[pptx]'` 即可（未在本机实测，本机无 docker daemon）。
+  "postCreateCommand": "pip install -e '.[pptx]' && printf '\\n=== caddiff dev container ready ===\\nGeometry and rendering steps need FreeCAD, which is deliberately NOT installed here\\n(building it takes tens of minutes and would wreck the first-run experience).\\nRun `caddiff diff` through the official image instead:\\n  docker run --rm -v \"$PWD:/data\" ghcr.io/OWNER/REPO:edge diff /data/old.stp /data/new.stp -o /data/report\\nPure-Python work (CLI, BOM alignment, report generation) and `pytest tests/unit` run fine here.\\n'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ]
+    }
+  },
+  "remoteUser": "vscode"
+}

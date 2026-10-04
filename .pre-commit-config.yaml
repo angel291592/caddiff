@@ -1,0 +1,37 @@
+# caddiff pre-commit —— 只做「秒级、零争议」的检查。
+#
+# 为什么是这几条（而不是更多）：
+#   1. 全部 hook 都在亚秒级完成，`pre-commit run --all-files` 不会让提交变慢。
+#      重型检查（mypy / pylint / 完整 lint 集）不进这里：它们慢，而且噪声会把真信号淹掉
+#      （与 pyproject.toml 里 ruff 只开 `E9/F63/F7/F82` 是同一个理由，见 AGENTS.md §7）。
+#   2. `check-added-large-files --maxkb=500` 是**脱敏防线**，不是洁癖：STEP 是纯文本，
+#      客户装配体动辄几十 MB，派生出的 PPTX/PNG 也一样。这条 hook 让「顺手把客户模型
+#      提交进来」在本地就被拦下，而不是等推送后才发现（AGENTS.md §5）。
+#      注意它只看本次提交新增/修改的文件，历史里的东西它管不了。
+#   3. `detect-private-key` 拦 PEM 私钥误提交；`check-merge-conflict` 拦残留冲突标记。
+#   4. 故意**没有**开 `check-json`：`.devcontainer/devcontainer.json` 是 JSONC
+#      （Dev Container 规范允许注释），check-json 会把带注释的文件判为非法 JSON。
+#      那两处注释正是该文件的价值所在（说明为什么不在容器里编译 FreeCAD）。
+#
+# 启用：`pip install pre-commit && pre-commit install`
+# 手动全量跑：`pre-commit run --all-files`
+# CI 不跑 pre-commit（ci.yml 跑的是 pytest），这里是本地闸门。
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      # 规则集取自 pyproject.toml（[tool.ruff.lint] select），这里不重复声明，
+      # 避免两处规则漂移。--fix 只自动修可安全修复项，其余原样报错。
+      - id: ruff
+        args: ["--fix"]

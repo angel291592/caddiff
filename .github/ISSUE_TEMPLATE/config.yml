@@ -1,0 +1,12 @@
+# Issue template chooser config.
+#
+# blank_issues_enabled: false —— 强制走表单。裸 issue 几乎总是缺「怎么跑的 / 版本 /
+# 完整命令 / 退出码」这四项，来回到第三次才问全；表单把这四问前置，省的是维护者的时间。
+# 代价是「只想问一句」的人被挡住，所以下面给安全报告留了一个 contact link 出口。
+blank_issues_enabled: false
+contact_links:
+  # 安全漏洞不走公开 issue（SECURITY.md 明写「Report privately. Do not open a public issue.」）。
+  # 发布前替换（placeholder）: OWNER/REPO。
+  - name: Report a security vulnerability (private)
+    url: https://github.com/OWNER/REPO/security/advisories/new
+    about: Do not open a public issue for vulnerabilities — see SECURITY.md for the private channel and scope.

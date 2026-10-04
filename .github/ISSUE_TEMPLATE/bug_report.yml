@@ -1,0 +1,147 @@
+name: Bug report
+description: A crash, a wrong diff, a missing artifact, or a broken exit code.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  # ── 安全警告放在最前面 ──────────────────────────────────────────────────────
+  # CAD 文件常含商业机密，派生出的 PNG/JSON/HTML 里也有明文零件名（AGENTS.md §5）。
+  # 这条必须在用户开始填表之前就看到，所以是 body 的第一项。
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you attach anything: never post a real customer model
+
+        CAD files routinely contain trade secrets, and the files this tool produces carry
+        them further: `diff_manifest.json`, `report.html`, `report.md` and every PNG all
+        contain **plain-text part names, counts and dimensions** taken from your model.
+
+        So please:
+
+        * attach a **minimal synthetic** pair of STEP files, not the assembly that failed;
+        * if the bug only reproduces on your real model, reproduce the *shape* of it with
+          synthetic parts (same part count, same naming pattern, same face-count order of
+          magnitude) and say what you had to change to keep it reproducing;
+        * scrub part names in pasted JSON/HTML/PNG — `PART-A`/`PART-B`/`ASSY-TOP` are fine.
+
+        Generate a synthetic pair with the bundled fixture generator (run it with the
+        FreeCAD Python, see `README.md`):
+
+        ```console
+        $ <FREECAD_PYTHON> cadiff/make_moved_fixture.py examples/fixtures
+        ```
+
+        For a security problem, stop here and follow `SECURITY.md` (private advisory)
+        instead — do not open a public issue.
+
+  - type: dropdown
+    id: how-run
+    attributes:
+      label: How are you running cadiff?
+      description: The container image is the supported path; a local FreeCAD install is best-effort.
+      options:
+        - Docker image (ghcr.io/OWNER/REPO)
+        - Local FreeCAD install (FREECAD_PYTHON set)
+        - From source (python cadiff/cli.py)
+        - GitHub Action (action.yml)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Output of `cadiff --version`
+      description: Exact string, please — it pins the version and the image tag together.
+      placeholder: "cadiff 0.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Full command you ran
+      description: The whole invocation, including `docker run` flags if you used the image.
+      render: console
+      placeholder: |
+        docker run --rm -v "$PWD:/data" ghcr.io/OWNER/REPO:edge \
+          diff /data/old.stp /data/new.stp -o /data/report
+    validations:
+      required: true
+
+  - type: dropdown
+    id: exit-code
+    attributes:
+      label: Actual exit code
+      description: |
+        The exit code is a contract: 0 = no differences, 1 = differences found,
+        2 = the run failed. A wrong code is itself a bug worth reporting.
+      options:
+        - "0 (no differences — but there are differences)"
+        - "1 (differences found — but there are none, or they are wrong)"
+        - "2 (execution failure)"
+        - The process was killed / I could not read an exit code
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+      description: Expected exit code, expected change list, expected image — and why.
+    validations:
+      required: true
+
+  - type: textarea
+    id: manifest
+    attributes:
+      label: Relevant excerpt of diff_manifest.json
+      description: |
+        Paste `summary` plus any entry that looks wrong (a change, an unpaired part, a
+        skipped part). If the run failed before writing a manifest, say so here instead.
+        Scrub part names.
+      render: json
+      placeholder: |
+        {
+          "summary": {
+            "has_differences": true,
+            "geometry_diff_count": 2,
+            "bom_diff_count": 0
+          }
+        }
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output
+      description: |
+        The full console log if you have it. Geometry and rendering run as subprocesses —
+        their stderr is where timeouts and crashes show up.
+      render: console
+    validations:
+      required: false
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal synthetic sample
+      description: |
+        Attach the two STEP files (or paste the script that generates them) and describe
+        how they differ. Small is good: a 2–3 part assembly that still shows the bug beats
+        a 55-part one.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: The model I attached is synthetic, or scrubbed — it contains no customer, employer or confidential data.
+          required: true
+        - label: I understand that derived PNG/JSON/HTML files also contain part names, and I scrubbed them before pasting.
+          required: true
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true

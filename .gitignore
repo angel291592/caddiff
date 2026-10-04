@@ -1,0 +1,42 @@
+# ============ 内部资料（永不入库） ============
+_internal/
+
+# ============ 一次性验证脚本（不入库、不复用） ============
+tests/_scratch/
+
+# ============ 运行产物 ============
+out/
+report/
+caddiff-out/          # CLI 默认输出目录（未指定 -o 时）
+caddiff-report/       # GitHub Action 默认输出目录
+*.pptx
+examples/**/out/
+examples/**/*.pptx
+
+# ============ 凭据（绝不入库） ============
+.env
+.env.*
+*.key
+*.pem
+.vision_key
+.model_env
+
+# ============ Python ============
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ============ 本机工具配置（含绝对路径） ============
+.vscode/
+.idea/
+.claude/
+.cursor/
+.mcp.json
+.code-review-graph/

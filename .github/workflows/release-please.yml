@@ -1,0 +1,63 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# release-please — Conventional Commits in, CHANGELOG + release PR out.
+#
+# This workflow is only the trigger. The behaviour lives in two files that MUST
+# exist next to it, both committed at the repository root:
+#
+#   release-please-config.json      release-type: python, package-name: cadiff
+#   .release-please-manifest.json   the version already released (single package ".")
+#
+# WHY `release-type: python` IS THE RIGHT TYPE HERE (verified against
+# release-please's Python strategy, not assumed):
+#   * it searches the repository for files *named* `version.py` and rewrites the
+#     `__version__ = "x.y.z"` line in each of them — so `cadiff/version.py`, our
+#     single source of truth for the version, is bumped automatically. No
+#     `extra-files` entry is needed for it.
+#   * `pyproject.toml` declares `dynamic = ["version"]`; the Python strategy
+#     detects that and skips the file with a warning instead of failing the run.
+#   * apart from `cadiff/version.py` and `CHANGELOG.md`, nothing else is touched.
+#
+# TAG FORMAT: `include-component-in-tag: false` keeps tags at `v0.2.0` instead of
+# `cadiff-v0.2.0`. AGENTS.md §6 requires image tag ↔ source tag ↔ build script to
+# line up one-to-one, and the plain `vX.Y.Z` form is what the Docker build and the
+# docs assume.
+#
+# MANIFEST BASELINE: `.release-please-manifest.json` says `0.1.0`, which is what
+# `cadiff/version.py` and the `[0.1.0]` section of CHANGELOG.md already say. So
+# 0.1.0 counts as released and the first release PR this workflow opens will be
+# for the *next* version. To let release-please cut `v0.1.0` itself instead, set
+# the manifest to `0.0.0` before the first run on `main`.
+#
+# KNOWN GOTCHA: pull requests opened with the default `GITHUB_TOKEN` do not
+# trigger other workflows, so `ci.yml` will not run on the release PR. That is the
+# deliberate default (no extra secret to provision). If the release PR must be
+# CI-gated, pass a PAT via `token: ${{ secrets.RELEASE_PLEASE_TOKEN }}`.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+# release-please opens/updates a release PR and creates the tag + GitHub release,
+# so it needs write access. This is the only workflow that has it — keep it so.
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: release PR / tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          # Both paths are the action's defaults; they are spelled out so that
+          # renaming either file breaks loudly here instead of silently.
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

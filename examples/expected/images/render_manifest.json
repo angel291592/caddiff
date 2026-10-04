@@ -1,0 +1,250 @@
+[
+  {
+    "base_name": "BRACKET",
+    "instance_index": 0,
+    "change_type": "shape_changed",
+    "label_old": "v1",
+    "label_new": "v2",
+    "cluster_count": 1,
+    "cluster_details": [
+      {
+        "index": 1,
+        "role": "removed",
+        "volume": 191.99999999999997,
+        "size_mm": [
+          4.0,
+          12.0,
+          4.0
+        ]
+      }
+    ],
+    "overview": "BRACKET_0_overview.png",
+    "overview_rect": "BRACKET_0_overview_rect.png",
+    "bbox_2d": [
+      317,
+      188,
+      352,
+      262
+    ],
+    "rects_overview": [
+      {
+        "rect": [
+          931,
+          544,
+          1076,
+          806
+        ],
+        "labels": [
+          1
+        ]
+      }
+    ],
+    "rect_line_width_px": 12,
+    "magenta_px_overview": 10364,
+    "overview_view_dir": [
+      -0.7071,
+      0.0,
+      -0.7071
+    ],
+    "overview_view_tag": "-1+0-1",
+    "overview_view_score": 0.8,
+    "overview_sat_in": 1152,
+    "overview_sat_out": 0,
+    "overview_view_fallback": false,
+    "overview_view_readability": 0.8,
+    "overview_ecc": 1.125,
+    "overview_compose": 1.0,
+    "overview_body_pct": 0.2307,
+    "overview_axis_dirs": {
+      "X": [
+        1.0,
+        0.0
+      ],
+      "Y": [
+        0.0,
+        -1.0
+      ],
+      "Z": [
+        -1.0,
+        0.0
+      ]
+    },
+    "closeup_new": "BRACKET_0_closeup_new.png",
+    "closeup_new_rect": "BRACKET_0_closeup_new_rect.png",
+    "bbox_2d_closeup": [
+      150,
+      -130,
+      458,
+      137
+    ],
+    "rects_closeup": [
+      {
+        "rect": [
+          430,
+          0,
+          1394,
+          431
+        ],
+        "labels": [
+          1
+        ]
+      }
+    ],
+    "magenta_px_closeup_new": 0,
+    "closeup_old": "BRACKET_0_closeup_old.png",
+    "closeup_old_rect": "BRACKET_0_closeup_old_rect.png",
+    "magenta_px_closeup_old": 119056,
+    "old_volume": 1439.9999999999998,
+    "new_volume": 1248.0,
+    "volume_delta": 191.99999999999997,
+    "volume_delta_pct": 15.384615384615383,
+    "diff_bbox_size_mm": [
+      4.0,
+      12.0,
+      4.0
+    ],
+    "removed_volume": 191.99999999999997,
+    "added_volume": 0.0,
+    "closeup_view_dir": [
+      -0.5774,
+      0.5774,
+      -0.5774
+    ],
+    "closeup_axis_dirs": {
+      "X": [
+        0.8657,
+        0.5005
+      ],
+      "Y": [
+        0.8657,
+        -0.5005
+      ],
+      "Z": [
+        0.0,
+        -1.0
+      ]
+    },
+    "banner_h": 310
+  },
+  {
+    "base_name": "SLIDER",
+    "instance_index": 0,
+    "change_type": "moved",
+    "label_old": "v1",
+    "label_new": "v2",
+    "cluster_count": 0,
+    "cluster_details": [],
+    "removed_volume": 0.0,
+    "added_volume": 0.0,
+    "translation_mm": 5.0,
+    "rotation_deg": 0.0,
+    "rotation_detected_by": "placement",
+    "overview": "SLIDER_1_overview.png",
+    "overview_rect": "SLIDER_1_overview_rect.png",
+    "bbox_2d": [
+      244,
+      256,
+      333,
+      346
+    ],
+    "rects_overview": [
+      {
+        "rect": [
+          691,
+          748,
+          1019,
+          1130
+        ],
+        "labels": []
+      }
+    ],
+    "rect_line_width_px": 12,
+    "magenta_px_overview": 44430,
+    "overview_view_dir": [
+      0.5774,
+      -0.5774,
+      0.5774
+    ],
+    "overview_view_tag": "+1-1+1",
+    "overview_view_score": 0.81,
+    "overview_sat_in": 345,
+    "overview_sat_out": 0,
+    "overview_view_fallback": false,
+    "overview_view_readability": 0.9391,
+    "overview_ecc": 1.933,
+    "overview_compose": 1.0,
+    "overview_body_pct": 0.185,
+    "overview_axis_dirs": {
+      "X": [
+        0.2614,
+        -0.9652
+      ],
+      "Y": [
+        0.9666,
+        -0.2564
+      ],
+      "Z": [
+        0.717,
+        0.6971
+      ]
+    },
+    "closeup_new": "SLIDER_1_closeup_new.png",
+    "closeup_new_rect": "SLIDER_1_closeup_new_rect.png",
+    "bbox_2d_closeup": [
+      169,
+      85,
+      440,
+      366
+    ],
+    "rects_closeup": [
+      {
+        "rect": [
+          487,
+          235,
+          1340,
+          1118
+        ],
+        "labels": []
+      }
+    ],
+    "magenta_px_closeup_new": 470073,
+    "closeup_old": "SLIDER_1_closeup_old.png",
+    "closeup_old_rect": "SLIDER_1_closeup_old_rect.png",
+    "bbox_2d_closeup_old": [
+      102,
+      46,
+      372,
+      327
+    ],
+    "magenta_px_closeup_old": 477731,
+    "old_volume": 799.9999999999998,
+    "new_volume": 799.9999999999998,
+    "volume_delta": 0.0,
+    "volume_delta_pct": 0.0,
+    "diff_bbox_size_mm": [
+      10.0,
+      10.0,
+      8.0
+    ],
+    "closeup_view_dir": [
+      -0.5774,
+      0.5774,
+      -0.5774
+    ],
+    "closeup_axis_dirs": {
+      "X": [
+        0.8675,
+        0.4975
+      ],
+      "Y": [
+        0.8675,
+        -0.4975
+      ],
+      "Z": [
+        0.0,
+        -1.0
+      ]
+    },
+    "banner_h": 310
+  }
+]

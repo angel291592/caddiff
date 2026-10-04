@@ -1,0 +1,25 @@
+# Normalize line endings: store LF in the repository and check out LF everywhere.
+# why：Windows 上 git 默认 core.autocrlf=true 会把检出文件改成 CRLF，于是同一个文件在
+# 不同平台上 diff 出满屏行尾噪声，CI 里的 lint 也会因为行尾不一致而红。项目是跨平台的
+# （Windows 开发机 + Linux 容器），必须钉死 LF。
+* text=auto eol=lf
+
+# Treat CAD files as binary — they are.
+
+# why：STEP/STL 是纯文本格式，git 默认会把它当文本做行级 diff 并尝试 merge。
+# 结果是 `git diff` 打出一大段毫无意义的坐标行噪声，而 merge 会「成功地」产出一个
+# 语法合法但几何错误的文件——这是最危险的一类合并冲突（没人会去复核 4 万行坐标）。
+# 标记为 binary 之后，git 只报告「文件已改变」，把比对交给真正的几何工具。
+*.stp   binary
+*.step  binary
+*.STP   binary
+*.STEP  binary
+*.stl   binary
+*.STL   binary
+*.brep  binary
+*.3mf   binary
+
+# 让 `git diff` 对 CAD 文件自动调用 cadiff（可选，需先按 docs/git-integration.md 配置）
+# 取消下面两行的注释即可启用；注意这要求 cadiff 在 PATH 上。
+# *.stp  diff=cadiff
+# *.step diff=cadiff
