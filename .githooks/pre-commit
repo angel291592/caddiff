@@ -15,6 +15,27 @@
 # Python 的机器上提交，请显式 `git commit --no-verify`——让它留下痕迹，而不是自动失效。
 set -u
 
+# ── 硬保险：本地 agent 规范永远不得入库 ──────────────────────────────────
+# AGENTS.md 是本机开发规范（含内部决策与战术），`.gitignore` 已经排除它，但
+# `.gitignore` 可以被删除、被 `git add -f` 绕过、也会在别人的克隆里不生效——
+# 而这个文件一旦进了历史就只能靠重写历史收拾（已经发生过一次）。
+# 所以这里再挡一道，且**不依赖 Python**：它在脱敏闸门之前、用 git 自身完成。
+# 同一个文件也在 .gitignore 里列着，两处都留是刻意的（一处是约定，一处是强制）。
+STAGED_LIST=$(mktemp 2>/dev/null || echo "/tmp/caddiff-staged.$$")
+if ! git diff --cached --name-only --diff-filter=ACM > "$STAGED_LIST" 2>/dev/null; then
+    echo "✖ 无法读取暂存区文件列表（git diff 失败）——拒绝提交（fail-closed）。" >&2
+    rm -f "$STAGED_LIST"
+    exit 1
+fi
+if grep -qE '(^|/)AGENTS\.md$|^_internal/' "$STAGED_LIST"; then
+    echo "✖ 拒绝提交：暂存区里有本机/内部文件（AGENTS.md 或 _internal/）。" >&2
+    echo "  它们属于本机开发资料，不属于公开仓库（见 .gitignore）。" >&2
+    echo "  从暂存区移除：git restore --staged AGENTS.md _internal" >&2
+    rm -f "$STAGED_LIST"
+    exit 1
+fi
+rm -f "$STAGED_LIST"
+
 find_python() {
     for candidate in python3 python py; do
         if command -v "$candidate" >/dev/null 2>&1 &&

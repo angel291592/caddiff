@@ -1,7 +1,7 @@
 # 能力一：STP 装配体差异对比流水线（`caddiff/`）— 模块功能文档
 
 > 本文是 diff 能力线的**唯一详细文档**：读它即可修改/调试 `caddiff/` 下全部脚本。
-> 项目宪法（命名/契约铁律/决策记录）见 [`../AGENTS.md`](../AGENTS.md)；对外用法见 [`../README.md`](../README.md)。
+> 对外用法见 [`../README.md`](../README.md)；产物布局与退出码语义见本文 §5。
 > 坑编号（A~I、G1~G7）沿用历史编号，跨文档引用不重排。
 
 ---
@@ -482,4 +482,4 @@ summary.settings                      本次实际生效的闸门取值（便于
 - `caddiff/console.py` — 控制台编码兜底：FreeCAD 自带的 Python 3.11 在中文 Windows 上 stdout 是 GBK，`mm³` 这类字符会让 `print` 抛 UnicodeEncodeError 把脚本打成退出码 1（实测：STP 已正确写出后仍因最后一行 print 崩掉）。tty 保留本机编码、只把不可编码字符降级为 `?`；管道/重定向改 UTF-8
 - `caddiff/i18n.py` — 产出物文案的唯一入口 `t(key, **kw)`（默认 `en`，`--lang zh` 或环境变量 `CADDIFF_LANG`；键缺失时回退默认语言、再缺失就原样返回 key，缺翻译会显式暴露在产出物里）。**控制台进度输出不进这张表**（一律英文），locale-neutral 字符与 `skipped_parts.reason` 枚举值永不翻译
 - `docs/pipeline.md` — 本文件：diff 能力线的模块功能文档（只写「为什么」与「不写就会踩的坑」）
-- 仓库级说明性文件：[`../README.md`](../README.md)（对外用法与首屏）、[`../AGENTS.md`](../AGENTS.md)（项目宪法：命名/契约铁律/决策记录）
+- 仓库级说明性文件：[`../README.md`](../README.md)（对外用法与首屏）、[`../CONTRIBUTING.md`](../CONTRIBUTING.md)（贡献与验证要求）、[`../THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md)（镜像内第三方组件许可证）
