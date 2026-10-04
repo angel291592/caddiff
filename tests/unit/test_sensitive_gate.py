@@ -125,6 +125,20 @@ def test_forbidden_paths_are_caught():
     assert {r for _, _, r in gate.check_path("dump/export.tgz")} == {"archive"}
     assert {r for _, _, r in gate.check_path("_internal/notes.md")} == {"internal-dir"}
     assert {r for _, _, r in gate.check_path("tests/_scratch/verify.py")} == {"internal-dir"}
+    # 本机专属文件：按名字拦，内容规则扫不出来（既无密钥也无专属词表命中项）
+    assert {r for _, _, r in gate.check_path("AGENTS.md")} == {"local-only-file"}
+    assert {r for _, _, r in gate.check_path("nested/AGENTS.md")} == {"local-only-file"}
+    # 大小写：Windows/macOS 上文件名大小写不敏感，规则必须同样不敏感
+    assert {r for _, _, r in gate.check_path("agents.md")} == {"local-only-file"}
+
+
+def test_local_only_rule_does_not_overreach():
+    """不能误伤合法文件——闸门误报多了就会被关掉，那比漏报更糟。"""
+    for path in ("docs/AGENTS-public.md",      # 前缀相同但不是它
+                 "AGENTS.md.example",          # 扩展名不同
+                 "docs/agents-guide.md",       # 只是名字里有 agents
+                 "README.md"):
+        assert gate.check_path(path) == [], path
 
 
 def test_allowed_paths_are_not_flagged():

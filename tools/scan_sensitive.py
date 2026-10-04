@@ -80,6 +80,13 @@ FORBIDDEN_PATHS = [
     (re.compile(r"(?i)(^|/)(id_rsa|id_ed25519|\.netrc|\.npmrc|\.pypirc|credentials)$"),
      "credential-file", ()),
     (re.compile(r"(?i)(^|/)(_internal|_probe_demo|tests/_scratch)/"), "internal-dir", ()),
+    # 本机专属文件（本地开发规范）——按名字拦，不看内容。
+    # why 必须单独有一条：`.gitignore` 只是约定，拦不住 `git add -f`、会被删掉、在别人的
+    # 克隆里也不生效；而这类文件**内容规则扫不出来**（既无密钥也不含专属词表命中项），
+    # 这正是它当初随首次公开发布漏进公开仓、最后只能删库重建的原因。
+    # 本次覆盖 pre-push（`scan_worktree` + `scan_history`）与 CI（全量克隆后在 CI 上跑
+    # `scan_worktree`）；pre-commit 另有一道不依赖 Python 的同名硬保险，两者都要在。
+    (re.compile(r"(?i)(^|/)AGENTS\.md$"), "local-only-file", ()),
 ]
 
 _MAX_BLOB_BYTES = 4 * 1024 * 1024

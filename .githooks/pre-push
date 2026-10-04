@@ -11,6 +11,35 @@
 # 解释器探测与 fail-closed 的理由见 .githooks/pre-commit 的注释。
 set -u
 
+# ── 路径硬保险（本机专属文件）─────────────────────────────────────────────
+# 推送是最后一道关：过了它就只在 GitHub 上了。这里用 git 自身再挡一次本机专属
+# 文件，**不依赖 Python**——理由见 .githooks/pre-commit 的同名段落。
+# 它看的是「整棵树」，因此连历史里已提交的副本也能拦住；内容规则做不到这件事，
+# 因为这类文件既没有密钥、也不含专属词表命中项（实测：删库重建前它就是这么漏出去的）。
+LOCAL_ONLY_RE='(^|/)AGENTS\.md$|^_internal/'
+_check_tree() {
+    if git ls-tree -r --name-only "$1" 2>/dev/null | grep -qE "$LOCAL_ONLY_RE"; then
+        echo "✖ 拒绝推送：提交 $1 的树里含本机专属文件（AGENTS.md 或 _internal/）。" >&2
+        echo "  它们属于本机资料，不属于公开仓库。清理后再推，或用 --no-verify 显式跳过。" >&2
+        exit 1
+    fi
+}
+# 将要出门的提交：默认远端分支不可用（首次推送）时退回 HEAD
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || echo "")
+if [ -n "$UPSTREAM" ]; then
+    RANGE="$UPSTREAM..HEAD"
+else
+    RANGE="HEAD"
+fi
+for rev in $(git rev-list "$RANGE" 2>/dev/null || echo HEAD); do
+    _check_tree "$rev"
+done
+# 暂存区也要看：pre-commit 被 --no-verify 跳过时，这里是第二道
+if git diff --cached --name-only --diff-filter=ACM 2>/dev/null | grep -qE "$LOCAL_ONLY_RE"; then
+    echo "✖ 拒绝推送：暂存区里有本机专属文件（AGENTS.md 或 _internal/）。" >&2
+    exit 1
+fi
+
 find_python() {
     for candidate in python3 python py; do
         if command -v "$candidate" >/dev/null 2>&1 &&
