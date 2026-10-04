@@ -226,7 +226,7 @@ def build_summary(bom_json, geom_json, render_manifest, label_old="", label_new=
 def run_diff(stp_old, stp_new, output_dir,
              label_old=None, label_new=None, lang=None,
              max_faces=None, boolean_timeout=None, skip_parts=None,
-             min_diff_pct=None, export_pptx=False):
+             min_diff_pct=None, render_timeout=None, export_pptx=False):
     """跑完整流水线，返回 diff_manifest 字典；失败抛 PipelineError。
 
     返回而不打印结论：退出码由调用方（cli.py）决定，本函数不 ``sys.exit``。
@@ -303,13 +303,18 @@ def run_diff(stp_old, stp_new, output_dir,
         render_cmd += ["--label-old", label_old]
     if label_new:
         render_cmd += ["--label-new", label_new]
+    effective_render_timeout = (render_timeout if render_timeout is not None
+                                else estimate_render_timeout(geom_json))
     run_step("Step 3/5: render diff images", render_cmd,
-             timeout=estimate_render_timeout(geom_json), artifacts=artifacts)
+             timeout=effective_render_timeout, artifacts=artifacts)
 
     # Step 4: 汇总 manifest + 报告（纯标准库，直接在本进程调用，不必起子进程）
     # 先写 diff_manifest.json（PPT 的汇总页要读它拿 skipped / unresolved / alignment），再生成 PPT。
     summary = build_summary(bom_json, geom_json, render_manifest,
                             label_old or "", label_new or "")
+    # 渲染用的是哪条死线，必须落进 manifest：否则「这一步超时了」无法复现，
+    # 也无法判断该调大估算还是真出了问题。估算/覆盖值都在这里显形。
+    summary.setdefault("settings", {})["render_timeout_s"] = effective_render_timeout
     manifest = {
         "manifest_version": MANIFEST_VERSION,
         "stp_old": stp_old,
@@ -392,6 +397,9 @@ def main(argv=None):
                     help="Comma-separated base_names to skip")
     ap.add_argument("--min-diff-pct", type=float, default=None,
                     help="Only report diffs larger than this %% of part volume")
+    ap.add_argument("--render-timeout", type=float, default=None,
+                    help="Override the render step deadline in seconds "
+                         "(default: estimated as 180 + 60 per difference)")
     args = ap.parse_args(argv)
 
     try:
@@ -400,6 +408,7 @@ def main(argv=None):
             label_old=args.label_old, label_new=args.label_new, lang=args.lang,
             max_faces=args.max_faces, boolean_timeout=args.boolean_timeout,
             skip_parts=args.skip_parts, min_diff_pct=args.min_diff_pct,
+            render_timeout=args.render_timeout,
             export_pptx=args.pptx)
     except PipelineError as exc:
         print(f"\nERROR: {exc}", file=sys.stderr)

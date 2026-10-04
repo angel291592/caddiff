@@ -65,6 +65,12 @@ def _add_diff_args(parser, *, with_out=True, out_default=DEFAULT_OUT):
                         help="skip boolean ops for parts with more faces than this (default: 5000)")
     parser.add_argument("--boolean-timeout", type=float, default=None,
                         help="hard timeout in seconds for a single boolean op (default: 60)")
+    parser.add_argument("--render-timeout", type=float, default=None,
+                        help="override the render step deadline in seconds. By default it "
+                             "is estimated from the number of differences "
+                             "(180 + 60 per change); raise it for large assemblies whose "
+                             "rendering legitimately takes longer, otherwise the step is "
+                             "killed and the run fails with exit code 2")
     parser.add_argument("--skip-parts", default=None, metavar="A,B",
                         help="comma-separated base_names to skip")
     parser.add_argument("--min-diff-pct", type=float, default=None,
@@ -103,6 +109,7 @@ def _run_diff_args(args, output_dir):
         label_old=args.label_old, label_new=args.label_new, lang=args.lang,
         max_faces=args.max_faces, boolean_timeout=args.boolean_timeout,
         skip_parts=args.skip_parts, min_diff_pct=args.min_diff_pct,
+        render_timeout=args.render_timeout,
         export_pptx=args.pptx)
     return manifest
 

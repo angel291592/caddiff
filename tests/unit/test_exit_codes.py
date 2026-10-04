@@ -96,3 +96,46 @@ def test_solidworks_spaced_products_are_counted(tmp_path):
 
     names = bom_diff.extract_product_names(_write(tmp_path / "spaced.step", _SPACED_STEP))
     assert names == ["back_left_foot", "crossbar"]
+
+
+def test_render_timeout_can_be_overridden(tmp_path):
+    """渲染死线必须可覆盖：默认估算（180 + 60/处）对大型装配体偏低。
+
+    实测（machineagency/jubilee，14 处差异）：估算给出 1020s，渲染到这一步还没结束就被
+    杀掉，整轮产物全丢、退出码 2。估算公式不坏，但它不该是唯一选择——用户看得出这一对
+    够大，就该能自己给一个更宽的死线。
+    """
+    import inspect
+
+    sig = inspect.signature(run_pipeline.run_diff)
+    assert "render_timeout" in sig.parameters
+    assert sig.parameters["render_timeout"].default is None
+
+    # 估算值本身仍然按「差异数」给，这一点不能被覆盖逻辑改动
+    geom = tmp_path / "geom.json"
+    geom.write_text(json.dumps({
+        "geometric_diffs": [{"geometric_changes": [{"a": 1}, {"b": 2}]}],
+    }), encoding="utf-8")
+    assert run_pipeline.estimate_render_timeout(str(geom)) == 180 + 60 * 2
+
+    # 没有差异时也给出一个下限，不能退化成 180 + 0
+    geom0 = tmp_path / "geom0.json"
+    geom0.write_text(json.dumps({"geometric_diffs": []}), encoding="utf-8")
+    assert run_pipeline.estimate_render_timeout(str(geom0)) == 180 + 60
+
+
+def test_render_timeout_is_recorded_in_settings(tmp_path):
+    """死线要落进 manifest.settings.render_timeout_s：否则「这一步超时了」无法复现。
+
+    纯逻辑验证：不跑 FreeCAD，直接检查 run_diff 把生效死线写进 summary 的那段契约。
+    用源码断言是刻意的——这条信息由编排层写入，而几何层根本不知道它存在。
+    """
+    import inspect
+
+    src = inspect.getsource(run_pipeline.run_diff)
+    assert "render_timeout_s" in src, (
+        "生效的渲染死线必须写进 summary.settings，否则超时无法归因"
+    )
+    # 覆盖值优先于估算值，且两者只算一次（同一个变量喂给 run_step 与 manifest）
+    assert "effective_render_timeout" in src
+    assert src.count("effective_render_timeout") >= 2
