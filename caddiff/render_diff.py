@@ -446,6 +446,23 @@ def banner_height(img_width):
     return pad * 2 + title + sub + int(sub * 0.75)
 
 
+def _fit_text(draw, text, font, max_w, keep=4):
+    """把文本截断到 ``max_w`` 像素以内，超出部分换成省略号。
+
+    why 按**实测像素宽度**而不是字符数：同一字符数在中英文下宽度差近一倍。实测教训——
+    标记带的标题本来就有截断，副行没有；把文案换成英文后，副行
+    ``View direction (X, Y, Z) = (...)`` 比中文长近一倍，直接压到右上角的坐标轴指示器上
+    （图上 ``-0.71)`` 与 Z 轴标签叠在一起）。按字符数截断救不了这种情况。
+
+    why 保留 ``keep`` 个字符：全截光会让读者不知道这里本来有内容。
+    """
+    if draw.textlength(text, font=font) <= max_w:
+        return text
+    while len(text) > keep and draw.textlength(text + "…", font=font) > max_w:
+        text = text[:-1]
+    return text + "…"
+
+
 def add_direction_banner(img_path, title, view_dir, axis_dirs, output_path=None):
     """在图片顶部加一条方向标记带：视角名 + 视线方向向量 + 三轴指示器。
 
@@ -479,18 +496,16 @@ def add_direction_banner(img_path, title, view_dir, axis_dirs, output_path=None)
                 fill=BANNER_ACCENT)
 
     tx = pad + bar_w + int(W * 0.012)
-    # 标题右边界必须留在坐标轴指示器左侧，否则长标题会把轴标签挤出画面（已实测）。
+    # 标题与副行的右边界都必须留在坐标轴指示器左侧，否则长文本会把轴标签挤在一起（已实测）。
     # 超长时截断加省略号——标记带是辅助信息，宁可截断也不能破坏版面。
     gizmo_left = W - gizmo_r * 2 - pad - int(W * 0.03)
-    max_title_w = gizmo_left - tx
-    if d.textlength(title, font=f_title) > max_title_w:
-        while len(title) > 4 and d.textlength(title + "…", font=f_title) > max_title_w:
-            title = title[:-1]
-        title += "…"
+    max_text_w = gizmo_left - tx
+    title = _fit_text(d, title, f_title, max_text_w)
     d.text((tx, pad - int(W * 0.002)), title, font=f_title, fill=BANNER_FG)
     vx, vy, vz = view_dir
+    subtitle = _fit_text(d, t("banner.view_dir", x=vx, y=vy, z=vz), f_sub, max_text_w)
     d.text((tx, pad + int(W * BANNER_TITLE_RATIO) + int(W * 0.006)),
-           t("banner.view_dir", x=vx, y=vy, z=vz),
+           subtitle,
            font=f_sub, fill=BANNER_SUB_FG)
 
     # 坐标轴指示器：画在标记带右侧

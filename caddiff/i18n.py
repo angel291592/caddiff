@@ -33,7 +33,7 @@ ENV_LANG = "CADDIFF_LANG"
 _LANGS = {
     "en": {
         # —— 图上标注（render_diff.py）——
-        "banner.view_dir": "View direction (X, Y, Z) = ({x:+.2f}, {y:+.2f}, {z:+.2f})",
+        "banner.view_dir": "View dir (X,Y,Z) = ({x:+.2f}, {y:+.2f}, {z:+.2f})",
         "banner.title.overview": "Overview · view {tag}",
         "banner.title.closeup": "{label} · close-up",
         "banner.title.moved_new": "{label} · new position",
