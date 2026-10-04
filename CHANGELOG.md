@@ -21,6 +21,32 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.2.0](https://github.com/angel291592/caddiff/compare/v0.1.0...v0.2.0) (2026-10-04)
+
+
+### Features
+
+* initial public release — caddiff v0.1.0
+* **security:** add a fail-closed sensitive-data gate
+
+
+### Bug Fixes
+
+* **ci:** spell the command correctly, and drop the placeholders CI never exercised
+* **diff:** degrade to a volume-delta verdict when the boolean degenerates
+* **diff:** stop collapsing distinct parts into one candidate
+* **docker:** install x11-utils so the container can actually run
+* **docker:** make the image actually run -- the interpreter was a GUI app
+* **gate:** stop flagging this repository's own git object names
+* **packaging:** make the console script work after pip install
+* **render:** truncate the banner subtitle too, and count BOM-only diffs correctly
+
+
+### Documentation
+
+* fix a stale reference to a CLAUDE.md that does not exist
+* record what running the image for real actually found
+
 ## [Unreleased]
 
 ## [0.1.0]
