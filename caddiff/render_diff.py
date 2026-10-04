@@ -606,10 +606,26 @@ def merge_rects(items, img_w, img_h):
     所以不能算一次到处复用。
     """
     boxes = []
+    dropped = []
     for rect, labels in items:
         x1, y1, x2, y2 = rect
-        boxes.append([max(0, x1), max(0, y1), min(img_w, x2), min(img_h, y2),
-                      set(labels)])
+        # Clip BOTH ends to the image, then drop what is left with no area. Clamping
+        # each end independently (`max(0, x1)` / `min(img_w, x2)`) is NOT clipping: a
+        # rect that sits entirely off-image keeps its far coordinate and ends up
+        # inverted (measured: (5000,100,1809,200) for a 1809px-wide image), which
+        # PIL rejects with "y1 must be greater than or equal to y0" and the whole
+        # render step dies (exit code 2, no manifest, after the geometry work).
+        cx1, cy1 = max(0.0, min(float(x1), float(img_w))), max(0.0, min(float(y1), float(img_h)))
+        cx2, cy2 = max(0.0, min(float(x2), float(img_w))), max(0.0, min(float(y2), float(img_h)))
+        if cx2 <= cx1 or cy2 <= cy1:
+            dropped.append((x1, y1, x2, y2, sorted(labels)))
+            continue
+        boxes.append([cx1, cy1, cx2, cy2, set(labels)])
+    if dropped:
+        # 禁止无声丢弃：框没了必须让人知道，否则报告会显得「该处差异不存在」
+        print(f"    !! {len(dropped)} diff rect(s) lie entirely outside the rendered view "
+              f"and were dropped: "
+              f"{[(int(r[0]), int(r[1]), int(r[2]), int(r[3])) for r in dropped]}")
     changed = True
     while changed:
         changed = False
