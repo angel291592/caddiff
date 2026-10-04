@@ -22,6 +22,33 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.3.0](https://github.com/angel291592/caddiff/compare/v0.2.1...v0.3.0) (2026-10-04)
+
+
+### Features
+
+* **cli:** let the render deadline be raised instead of silently truncating large runs ([efb2d3e](https://github.com/angel291592/caddiff/commit/efb2d3e08827c816bcc25cee7339cfbd7ee0029f))
+
+
+### Bug Fixes
+
+* **bom:** stop reading SolidWorks STEP files as empty assemblies ([b222576](https://github.com/angel291592/caddiff/commit/b222576044188f5f3d2118d465933754c408bfb4))
+* **changelog:** drop commit links the history rewrite invalidated ([9d7c110](https://github.com/angel291592/caddiff/commit/9d7c110ce8ca0fa69dfa8c92c15784d0fe2f12f8))
+* **gate:** name-based blocking for the local agent spec, on all three triggers ([a6acb15](https://github.com/angel291592/caddiff/commit/a6acb15559712f595c8d1d6562b3a68d3c3fb4e6))
+* **pipeline:** refuse to report "no differences" when nothing was parsed ([d814b51](https://github.com/angel291592/caddiff/commit/d814b515bcd8afcd26eefc0dffbf808088317ea4))
+* **render:** clip diff rects instead of inverting them, and never drop silently ([ea4d4a1](https://github.com/angel291592/caddiff/commit/ea4d4a1e39faf016c7249f686d830d550b475d7f))
+
+
+### Performance Improvements
+
+* **render:** stop re-fitting the camera for every candidate view ([263ebf5](https://github.com/angel291592/caddiff/commit/263ebf5d503463879832ee61a2cf8f149b7c696c))
+
+
+### Documentation
+
+* **ci:** record that the image is live, and the tag trigger that never fires ([16724b9](https://github.com/angel291592/caddiff/commit/16724b94923458565fc910589c2df3139701b99f))
+* stop pointing readers at a file the repository does not ship ([add7d5f](https://github.com/angel291592/caddiff/commit/add7d5f91426db33618b7b8e16ae1da58437ab54))
+
 ## [0.2.1](https://github.com/angel291592/caddiff/compare/v0.2.0...v0.2.1) (2026-10-04)
 
 
