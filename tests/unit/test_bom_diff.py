@@ -34,6 +34,50 @@ def test_extract_product_names_reads_all_records(tmp_path):
     assert bom_diff.extract_product_names(p) == ["PLATE_01", "BOLT_02", "BOLT_03"]
 
 
+def test_extract_product_names_tolerates_exporter_spacing(tmp_path):
+    """导出器对 `PRODUCT(` 里的空格没有共识，解析必须都认。
+
+    实测（machineagency/jubilee，45.7MB SolidWorks 装配体）：文件写的是
+    ``#90 = PRODUCT ( 'back_left_foot', ... )``，而正则只认紧凑的 ``PRODUCT('``。
+    结果是整份装配体被解析成 0 个产品 -> 0 个候选 -> 报「无差异」、退出码 0。
+    真实改动被 CI 闸门放行，是本项目最危险的失败模式。
+    """
+    path = tmp_path / "spaced.stp"
+    path.write_text(
+        "ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\n"
+        "#90 = PRODUCT ( 'back_left_foot', 'back_left_foot', '', ( #439791 ) ) ;\n"
+        "#432 = PRODUCT ( 'crossbar_6mm', 'crossbar_6mm', '', ( #10 ) ) ;\n"
+        "#501 = PRODUCT_CONTEXT ( 'NONE', #75361, 'mechanical' ) ;\n"
+        "#1=PRODUCT('tight_form','tight_form','',(#99));\n"
+        # 跨行写法：关键字与括号之间隔一个换行，同样必须认
+        "#2=PRODUCT\n  ( 'line_broken', 'line_broken', '', (#99) );\n"
+        "ENDSEC;\nEND-ISO-10303-21;\n",
+        encoding="utf-8",
+    )
+    names = bom_diff.extract_product_names(str(path))
+    # PRODUCT_CONTEXT 不是零件，绝不能混进来
+    assert names == ["back_left_foot", "crossbar_6mm", "tight_form", "line_broken"]
+
+
+def test_solidworks_style_pair_is_not_silently_unchanged(tmp_path):
+    """两个只有 SolidWorks 写法差异的装配体，必须报出增删件而不是「无差异」。"""
+    def write(path, names):
+        body = "".join(
+            f"#{i + 1} = PRODUCT ( '{n}', '{n}', '', ( #99 ) ) ;\n"
+            for i, n in enumerate(names)
+        )
+        path.write_text("ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\n" + body
+                        + "ENDSEC;\nEND-ISO-10303-21;\n", encoding="utf-8")
+        return str(path)
+
+    old = write(tmp_path / "old.stp", ["PLATE", "BOLT"])
+    new = write(tmp_path / "new.stp", ["PLATE", "BOLT", "ADDED_PART"])
+    res = bom_diff.diff_bom(old, new)
+    assert res["old_total_products"] == 2
+    assert res["new_total_products"] == 3
+    assert res["added"] == ["ADDED_PART"]
+
+
 def test_diff_bom_detects_added_removed_and_count_change(tmp_path):
     old = _write_stp(tmp_path / "old.stp", ["PLATE_01", "BOLT_02", "BOLT_03", "GONE_04"])
     new = _write_stp(tmp_path / "new.stp", ["PLATE_01", "BOLT_02", "BOLT_03",

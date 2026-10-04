@@ -20,7 +20,15 @@ import console  # noqa: E402
 console.enable_utf8_output()
 
 
-PRODUCT_RE = re.compile(r"PRODUCT\('([^']*)'")
+# Whitespace between the keyword, the parenthesis and the quote is OPTIONAL and
+# exporters disagree about it: Creo writes `PRODUCT('name'` while SolidWorks writes
+# `PRODUCT ( 'name'`. The original pattern required the tight form, so every
+# SolidWorks STEP parsed as ZERO products -- and zero products means no candidates,
+# no differences and exit code 0. Measured on machineagency/jubilee (45.7 MB,
+# 143 solids, 804 assembly occurrences): the whole assembly was reported as
+# "unchanged". That is the exact false negative the exit-code contract exists to
+# prevent, so the separators are now matched explicitly.
+PRODUCT_RE = re.compile(r"PRODUCT\s*\(\s*'([^']*)'")
 
 
 def extract_product_names(stp_path):
