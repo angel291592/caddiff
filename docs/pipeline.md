@@ -61,7 +61,14 @@ OLD.stp, NEW.stp
 
 **布尔运算必须在子进程里跑（不可回退成直接调用）**：FreeCAD 的布尔是 C++ 阻塞调用，Windows 上 `signal.alarm` 不可用、线程也中断不了它。实测 `PART-B` **仅 912 面**却单次 `cut` 跑过 **840s 未返回**——面数与布尔耗时不成正比，任何面数闸门都拦不住它。`boolean_worker.py` 通过 `exportBrep`/`importBrep` 只传单个零件几何（正常零件端到端仅 0.6s 开销，不需要在子进程里重新导入 STP），父进程超时即 `kill`，零件记入 `skipped_parts`。**子进程里必须先 `import FreeCAD` 再 `import Part`**，直接 import Part 会以 0xC0000005 访问违例崩溃（实测 `rc=3221225477`）。
 
-**环境约束（必须遵守）**：`geom_diff.py` 和 `render_diff.py` 必须用 **FreeCAD 自带的解释器**运行——`caddiff/fcenv.py` 是解释器路径解析的**唯一真相源**（`FREECAD_PYTHON` → `FREECAD_HOME` → Linux 常见安装路径 → `PATH`，找不到就抛错并给修复指引，**不静默回退到当前解释器**）。FreeCAD 的 Part/Gui 是编译好的二进制扩展，只兼容其打包绑定的 Python 3.11，装不到系统 Python 3.14。`bom_diff.py` 和 `build_pptx.py` 是纯逻辑，用系统 Python。Linux/容器侧的等价约束见 [`../README.md`](../README.md)。
+**环境约束（必须遵守）**：`geom_diff.py` 和 `render_diff.py` 必须用**能 `import FreeCAD` 的解释器**运行——`caddiff/fcenv.py` 是解释器路径解析的**唯一真相源**（`FREECAD_PYTHON` → `FREECAD_HOME` → Linux 常见安装路径 → `PATH`，找不到就抛错并给修复指引，**不静默回退到当前解释器**）。`bom_diff.py` 和 `build_pptx.py` 是纯逻辑，用系统 Python。
+
+判据是「**那个解释器能跑 `script.py args`**」，不是「它叫什么名字」——两者会分叉，实测踩过：
+
+- **Windows**：FreeCAD 发行版的 `bin/python.exe` 就是真解释器，直接用。它的 Part/Gui 是绑定 py3.11 的编译扩展，装不到系统的 3.14。
+- **Linux（apt / 官方 PPA）**：`/usr/lib/freecad/bin/freecad-python3` **不是解释器**，而是一份内嵌 Python 的 113KB **GUI 应用**。把脚本交给它，位置参数会被当成「要打开的文档」，于是它启动整个 GUI 后**永不返回**（实测流水线第二步 300s 超时 `rc=124`，容器 CPU 0%、零输出，看起来像卡死）。正确做法是系统 `python3` + `PYTHONPATH=/usr/lib/freecad/lib`——镜像里就是这么配的。上面那条「只兼容绑定版本 Python」只对 Windows 发行版成立：Linux 包把模块装在该目录下，distro 的 python3.12 可以直接用。
+
+`deploy/Dockerfile` 把这条约束钉成了构建期断言，且断言的不只是 `-c` 能 import，还包括**脚本文件**能执行、以及虚拟显示下能取到 `ActiveView`——前一条正是用来拦住上面那个坑的（`freecad-python3` 能过 `-c`，但过不了「执行脚本文件」）。
 
 ---
 

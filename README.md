@@ -171,14 +171,18 @@ the entire reason this project exists — see [The problem](#the-problem).
 
 ## Benchmarks (measured, not estimated)
 
-All numbers below are wall-clock on a Windows machine with FreeCAD 1.1.3, software
-rendering, no GPU. Rendering dominates: each change costs one 26-direction scan
-(≈0.85 s per direction) plus three images.
+All numbers below are wall-clock, software rendering, no GPU. Rendering dominates:
+each change costs one 26-direction scan (≈0.85 s per direction) plus three images.
 
-| Input | Changes found | Wall clock |
-|---|---|---|
-| 3-part synthetic assembly ([`examples/`](examples/)) | 2 | **≈80 s** |
-| 55-part production assembly | 3 | **290–366 s** |
+| Input | Where it ran | Changes found | Wall clock |
+|---|---|---|---|
+| 3-part synthetic assembly ([`examples/`](examples/)) | source checkout, Windows + FreeCAD 1.1.3 | 2 | **≈80 s** |
+| 3-part synthetic assembly, same fixture | official image, Linux + FreeCAD 0.21.2 | 2 | **≈35 s** |
+| 55-part production assembly | source checkout, Windows + FreeCAD 1.1.3 | 3 | **290–366 s** |
+
+The image is faster on the small fixture because the container is a clean Linux
+filesystem — no Windows Defender scanning of the intermediate STEP/BREP files. Do not
+read that as 0.21 being faster than 1.1.3; the two rows differ in more than one way.
 
 Reproduce the first row yourself:
 

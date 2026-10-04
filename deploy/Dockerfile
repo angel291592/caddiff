@@ -20,18 +20,28 @@
 # FreeCAD 来自 PPA，apt 的版本串随发布浮动，写死一个精确版本号会让构建在某天突然
 # 找不到包。这里改用「**期望版本 + 构建期硬断言**」：版本不符就直接构建失败，
 # 而不是悄悄产出一个与文档不符的镜像。
-ARG FREECAD_EXPECT_MAJOR_MINOR=1.0
+ARG FREECAD_EXPECT_MAJOR_MINOR=0.21
 
 FROM ubuntu:24.04
 
 ARG FREECAD_EXPECT_MAJOR_MINOR
 ARG DEBIAN_FRONTEND=noninteractive
 
+# ⚠️ FREECAD_PYTHON 必须是**真正的 Python 解释器**，不能是 /usr/lib/freecad/bin/freecad-python3。
+# why（实测踩坑）：那个 113KB 的 ELF 是 FreeCAD 的 **GUI 应用**，只是内嵌了 Python。它把位置
+# 参数当作「要打开的文档」而不是「要执行的脚本」——于是流水线第二步
+# `freecad-python3 geom_diff.py ...` 会去启动整个 GUI 并**永不返回**（实测 300s 超时 rc=124，
+# 容器 CPU 0%、零输出，看起来像卡死）。Windows 上的 FREECAD_PYTHON 是 bin/python.exe，
+# 一个货真价实的解释器，所以同一套调用式在 Windows 成立、在这个 Linux 打包上不成立——
+# 这正是它长期没被发现的原因。
+# 改成系统 python3 + PYTHONPATH 指向 FreeCAD 的模块目录后，流水线本来就用的
+# `python3 script.py args` 形式直接成立（AGENTS.md D-003：解释器路径单一真相源，不加平台分支）。
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     PYTHONUNBUFFERED=1 \
     LIBGL_ALWAYS_SOFTWARE=1 \
-    FREECAD_PYTHON=/usr/lib/freecad/bin/freecad-python3
+    FREECAD_PYTHON=/usr/bin/python3 \
+    PYTHONPATH=/usr/lib/freecad/lib
 
 # ── 系统依赖 ─────────────────────────────────────────────────────────────
 # freecad            几何内核 + FreeCAD 模块（LGPL / 部分 GPL，见 THIRD_PARTY_LICENSES.md）
@@ -73,8 +83,31 @@ RUN set -eux; \
 # ── 构建期断言：几何与渲染依赖在 **FreeCAD 解释器** 里必须可导入 ──────────
 # 这两个包若只在系统 python 里，渲染步骤会以 ModuleNotFoundError 失败；
 # 早先的镜像没有显式安装 numpy，属于「碰巧能用」，这里改成硬断言。
-RUN $FREECAD_PYTHON -c "import FreeCAD, Part, FreeCADGui, numpy, PIL; \
+RUN $FREECAD_PYTHON -c "import FreeCAD, Part, Import, FreeCADGui, numpy, PIL; \
     print('freecad-python OK:', FreeCAD.Version()[:3], 'numpy', numpy.__version__, 'PIL', PIL.__version__)"
+
+# ── 构建期断言：$FREECAD_PYTHON 必须能**执行一个脚本文件** ─────────────────
+# why 单独断言这一条：`-c` 能用并不代表 `script.py` 能用。freecad-python3（GUI 应用）
+# 就满足 `-c`，却会把位置参数当文档打开——流水线用的正是 `[解释器, 脚本, 参数]` 形式，
+# 于是它启动 GUI 后永不返回。上面那条 `-c` 断言拦不住这个坑，这条能：写进脚本文件再跑，
+# 跑不起来（或挂住）构建就失败。
+RUN printf 'import FreeCAD, Part, Import, FreeCADGui, numpy, PIL\nprint("script-exec OK")\n' > /tmp/probe_script.py \
+    && $FREECAD_PYTHON /tmp/probe_script.py \
+    && rm -f /tmp/probe_script.py
+
+# ── 构建期断言：虚拟显示下能真的拿到 3D 视口 ──────────────────────────────
+# why 必须测：渲染步骤靠 `FreeCADGui.showMainWindow()` + `md.ActiveView` 截图，纯 headless
+# 的 FreeCADCmd 没有视口。这条断言把这个依赖钉在构建期，而不是等用户跑渲染时才发现。
+# 时序照抄 render_diff.py（showMainWindow 之后要等窗口起来，再建文档取 ActiveView），
+# 否则断言自己会假失败。附带记录一条更正：「0.21 缺 showMainWindow」是**错误测量**，
+# 在正确的解释器配置下它是存在的——真正坏掉的是解释器，不是 GUI API。
+RUN xvfb-run -a --server-args="-screen 0 800x600x24" $FREECAD_PYTHON -c "\
+import time, FreeCAD, FreeCADGui; \
+FreeCADGui.showMainWindow(); \
+time.sleep(2); \
+doc = FreeCAD.newDocument('BuildProbe'); \
+av = FreeCADGui.getDocument(doc.Name).ActiveView; \
+print('viewport OK:', type(av).__name__)"
 
 # ── 可选依赖：PPT 导出（决策 D-006，--pptx 才用到）────────────────────────
 RUN pip3 install --no-cache-dir --break-system-packages "python-pptx>=0.6.23"

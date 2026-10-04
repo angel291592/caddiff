@@ -34,9 +34,12 @@ _PATH_NAMES = ("freecad-python3", "FreeCADCmd", "freecadcmd")
 
 _HINT = (
     "未找到 FreeCAD 的 Python 解释器。请任选一种方式修复：\n"
-    "  1) 设置环境变量 FREECAD_PYTHON 指向 FreeCAD 自带的 python 可执行文件；\n"
+    "  1) 设置环境变量 FREECAD_PYTHON 指向**能执行脚本文件**的 Python 解释器；\n"
     "     例（Windows）: set FREECAD_PYTHON=C:\\FreeCAD 1.1\\bin\\python.exe\n"
-    "     例（Linux）  : export FREECAD_PYTHON=/usr/lib/freecad/bin/freecad-python3\n"
+    "     例（Linux）  : export FREECAD_PYTHON=/usr/bin/python3\n"
+    "                    export PYTHONPATH=/usr/lib/freecad/lib\n"
+    "     ⚠️ Linux 上**不要**指向 /usr/lib/freecad/bin/freecad-python3：那是一份内嵌 Python 的\n"
+    "        GUI 应用，会把脚本参数当成「要打开的文档」，启动整个 GUI 后永不返回（实测挂死）。\n"
     "  2) 安装 FreeCAD（apt install freecad / 官方安装包）后重试；\n"
     "  3) 直接用官方 Docker 镜像跑，镜像内已配置好该变量。"
 )
