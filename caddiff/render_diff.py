@@ -1433,7 +1433,7 @@ def render_moved_one(md, av, doc, output_dir, bn, idx, change, bbox,
     label_new = label_new or t("label.new")
     rec = {"base_name": bn, "instance_index": change["instance_index"],
            "change_type": "moved", "label_old": label_old, "label_new": label_new}
-    # moved 类的既有字段取值约定（下游必须先判 change_type 再读，见 CLAUDE.md 契约）：
+    # moved 类的既有字段取值约定（下游必须先判 change_type 再读，见 AGENTS.md §3 契约铁律）：
     # 没有对称差 → 无簇、无增减料。写成 0 而非缺省，避免下游 KeyError。
     rec["cluster_count"] = 0
     rec["cluster_details"] = []
