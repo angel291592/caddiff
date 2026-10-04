@@ -27,6 +27,19 @@
 # image contains LGPL/GPL upstream binaries (see THIRD_PARTY_LICENSES.md) and
 # those obligations have to be settled before publishing signed provenance.
 # ─────────────────────────────────────────────────────────────────────────────
+# ⚠️ KNOWN GAP — RELEASES DO NOT AUTO-BUILD TODAY (measured, not assumed).
+# `release-please` creates its tag and release with the default `GITHUB_TOKEN`, and
+# GitHub deliberately does not trigger workflows from events a `GITHUB_TOKEN`
+# produced. Consequence, observed on both v0.2.0 and v0.2.1: the tag and the Release
+# appear, no `Docker publish` run is ever created for them, and the versioned image
+# silently does not exist. Dispatching by hand closes it:
+#
+#     gh workflow run docker-publish.yml --ref v0.2.1
+#
+# The `release: published` trigger below is the automated fix and it is inert until
+# release-please is given a PAT or GitHub App token instead of `GITHUB_TOKEN`
+# (see the GOTCHA note in release-please.yml). Publishing a Release by hand from the
+# web UI does fire it. Until then: **every release needs `workflow_dispatch`**.
 name: Docker publish
 
 on:
@@ -40,6 +53,8 @@ on:
       - "deploy/**"
       - "pyproject.toml"
       - ".github/workflows/docker-publish.yml"
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -88,13 +103,17 @@ jobs:
           # `latest=auto` is on by default, which would also tag `edge` builds
           # (a branch build) as `latest`. `latest` must mean "the newest
           # released version", so it is spelled out per-tag below instead.
+          #
+          # The conditions use `github.ref_type`, NOT `github.ref`: on a `release`
+          # event `github.ref` is the default branch, so a `startsWith(github.ref,
+          # 'refs/tags/')` test would silently tag a release build as `edge`.
           flavor: |
             latest=false
           tags: |
             type=ref,event=tag
             type=sha,format=short
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=edge,enable=${{ github.ref_type == 'branch' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6

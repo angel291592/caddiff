@@ -103,19 +103,22 @@ jobs:
     # Two independent reasons to keep this off the default PR path:
     #   * the image is ~1.5–2 GB; pulling it on every PR push is pure waste, and
     #     `edge` only tracks `main`, so a PR would test the wrong revision;
-    #   * until the repository is published the image does not exist at all, and
-    #     a permanently-red check gets ignored — worse than a visible skip.
-    # `vars.IMAGE_AVAILABLE` is the switch. Enable it once the image is published:
-    #     gh variable set IMAGE_AVAILABLE --body true
-    # The job then runs on every push to main (post-merge, so an unpublished image
-    # can never block a PR) and on manual dispatch. Manual dispatch always runs.
+    #   * the job needs a *published* image to exist, so it can only be switched on
+    #     after the first docker-publish run.
+    # `vars.IMAGE_AVAILABLE` is the switch and it is now `true` (set 2026-10-04, after
+    # `ghcr.io/.../caddiff:v0.2.0` was published). The job runs on every push to main
+    # (post-merge, so a missing image can never block a PR) and on manual dispatch.
+    # Manual dispatch always runs, switch or not.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.IMAGE_AVAILABLE == 'true')
 
     env:
-      # 镜像尚未发布到 GHCR（见上方的 `vars.IMAGE_AVAILABLE` 开关）。发布后建议把
-      # `edge` 换成 digest 以钉死版本——`edge` 会随 main 漂移，跑出来的结果无法复现。
+      # `edge` tracks the tip of main and is rebuilt by docker-publish.yml whenever
+      # something that lands in the image changes. Pinning a digest here would make
+      # the run reproducible, but it would also stop this job from ever testing
+      # today's main — which is the point of a post-merge gate. The release image is
+      # the digest-stable one: `ghcr.io/angel291592/caddiff:vX.Y.Z`.
       IMAGE: ghcr.io/angel291592/caddiff:edge
 
     steps:
