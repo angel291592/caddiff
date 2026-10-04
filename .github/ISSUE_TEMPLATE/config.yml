@@ -6,7 +6,7 @@
 blank_issues_enabled: false
 contact_links:
   # 安全漏洞不走公开 issue（SECURITY.md 明写「Report privately. Do not open a public issue.」）。
-  # 发布前替换（placeholder）: OWNER/REPO。
+  # 发布前替换（placeholder）: OWNER/caddiff。
   - name: Report a security vulnerability (private)
-    url: https://github.com/OWNER/REPO/security/advisories/new
+    url: https://github.com/OWNER/caddiff/security/advisories/new
     about: Do not open a public issue for vulnerabilities — see SECURITY.md for the private channel and scope.

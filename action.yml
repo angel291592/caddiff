@@ -19,15 +19,15 @@
 #      the base repo, or `pull_request_target` with a strict checkout policy) is
 #      required; it is deliberately out of scope here.
 #
-# 发布前替换（placeholder）: `OWNER/REPO` in the default `image:` below.
-# TODO(publish): replace OWNER/REPO with the real owner/repo before publishing.
+# 发布前替换（placeholder）: `OWNER/caddiff` in the default `image:` below.
+# TODO(publish): replace OWNER/caddiff with the real owner/repo before publishing.
 #
 # EXIT CODES: `caddiff diff` exits 1 when differences ARE found — that is a result,
 # not a failure. The run step captures the exit code instead of letting the step
 # fail, and only exit code 2 (execution failure) fails the action.
 #
 # USAGE
-#   - uses: OWNER/REPO@v0.1.0
+#   - uses: OWNER/caddiff@v0.1.0
 #     id: caddiff
 #     with:
 #       old: models/base.stp
@@ -59,7 +59,7 @@ inputs:
     description: 'Prebuilt caddiff container image to run. Pin a tag or digest for reproducible CI.'
     required: false
     # 发布前替换（placeholder）。
-    default: 'ghcr.io/OWNER/REPO:edge'
+    default: 'ghcr.io/OWNER/caddiff:edge'
   args:
     description: 'Extra arguments appended to `caddiff diff` (e.g. "--min-diff-pct 0.1 --skip-parts PART-B").'
     required: false

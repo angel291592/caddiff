@@ -39,7 +39,7 @@ body:
       label: How are you running cadiff?
       description: The container image is the supported path; a local FreeCAD install is best-effort.
       options:
-        - Docker image (ghcr.io/OWNER/REPO)
+        - Docker image (ghcr.io/OWNER/caddiff)
         - Local FreeCAD install (FREECAD_PYTHON set)
         - From source (python cadiff/cli.py)
         - GitHub Action (action.yml)
@@ -63,7 +63,7 @@ body:
       description: The whole invocation, including `docker run` flags if you used the image.
       render: console
       placeholder: |
-        docker run --rm -v "$PWD:/data" ghcr.io/OWNER/REPO:edge \
+        docker run --rm -v "$PWD:/data" ghcr.io/OWNER/caddiff:edge \
           diff /data/old.stp /data/new.stp -o /data/report
     validations:
       required: true

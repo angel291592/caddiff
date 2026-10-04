@@ -95,9 +95,9 @@ jobs:
 
     env:
       # 发布前替换（placeholder）：owner/repo 与镜像地址均未最终确定。
-      # TODO(publish): replace OWNER/REPO, then pin a digest instead of `edge`
+      # TODO(publish): replace OWNER/caddiff, then pin a digest instead of `edge`
       # once the image is stable.
-      IMAGE: ghcr.io/OWNER/REPO:edge
+      IMAGE: ghcr.io/OWNER/caddiff:edge
 
     steps:
       - uses: actions/checkout@v7
