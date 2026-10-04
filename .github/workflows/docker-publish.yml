@@ -1,0 +1,141 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-publish — build the distributable image and push it to GHCR.
+#
+# WHY THIS WORKFLOW EXISTS (AGENTS.md §6): the image bundles FreeCAD/OpenCASCADE
+# under their own licenses, so "image tag ↔ source tag ↔ build script" must line
+# up one-to-one. Before this file the image existed only on the maintainer's
+# machine, which is exactly the state that rule forbids: nothing tied
+# `ghcr.io/<owner>/caddiff` to a commit.
+#
+# WHY `GITHUB_TOKEN` IS ENOUGH: a token login is only needed for a *first* push
+# as the package owner. Using the workflow's own `GITHUB_TOKEN` (with
+# `packages: write`) means there is no PAT to provision, rotate or leak — and the
+# maintainer's local `gh` login (scopes: gist / read:org / repo) never has to
+# carry `write:packages`.
+#
+# TAGS PRODUCED
+#   tag push vX.Y.Z → `vX.Y.Z` (the reproducible, contract-bearing one), `latest`
+#                     (what a human copy-pastes from the README) and the commit sha
+#   push to main    → `edge` (tracks the tip of main; what `ci.yml`'s e2e job
+#                     pulls) and the commit sha
+#
+# COST: the FreeCAD layer is ~2 GB and takes tens of minutes. `edge` therefore
+# only rebuilds when something that actually lands in the image changed — see
+# `paths:` below. Docs, examples, tests and tooling are excluded.
+#
+# NOTE ON PROVENANCE: no attestation / SBOM step yet. That is deliberate — the
+# image contains LGPL/GPL upstream binaries (see THIRD_PARTY_LICENSES.md) and
+# those obligations have to be settled before publishing signed provenance.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Docker publish
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+    paths:
+      - "caddiff/**"
+      - "deploy/**"
+      - "pyproject.toml"
+      - ".github/workflows/docker-publish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One publisher per ref. A tag build must never be cancelled by a later main
+  # push, so the group includes the ref and cancellation stays off for tags.
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  # `github.repository` is `owner/caddiff`; GHCR paths must be lowercase.
+  IMAGE: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    name: build and push image
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Buildx gives the GHA layer cache that makes the second build cheap; the
+      # first build still pays full price for the FreeCAD layer.
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          # `latest=auto` is on by default, which would also tag `edge` builds
+          # (a branch build) as `latest`. `latest` must mean "the newest
+          # released version", so it is spelled out per-tag below instead.
+          flavor: |
+            latest=false
+          tags: |
+            type=ref,event=tag
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The image re-states its own build-time assertions (FreeCAD version,
+      # importable numpy/PIL, script-file execution, 3D viewport under Xvfb), so
+      # a successful build already proves a lot. This last step proves the thing
+      # a user actually does: pull the published artifact and get an exit code
+      # from a real diff. `--version` alone would pass even if the entrypoint
+      # were wired to the wrong script.
+      - name: Smoke-test the published image
+        run: |
+          set -euo pipefail
+          FIRST_TAG="$(echo "${{ steps.meta.outputs.tags }}" | head -n1)"
+          echo "smoke-testing $FIRST_TAG"
+          docker pull "$FIRST_TAG"
+          docker run --rm "$FIRST_TAG" --version
+
+          # `caddiff diff` exits 1 when it finds differences — on this synthetic
+          # fixture pair that IS the success case, so the code is captured
+          # rather than allowed to abort the step.
+          set +e
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/data" \
+            -w /data \
+            "$FIRST_TAG" \
+            diff /data/examples/fixtures/moved_old.stp /data/examples/fixtures/moved_new.stp \
+                 -o /data/smoke --lang en
+          code=$?
+          set -e
+          if [ "$code" -ne 1 ]; then
+            echo "::error::published image returned exit code $code on the moved fixture (expected 1: differences found; 2 = execution failure, 0 = nothing detected)"
+            exit 1
+          fi
+          test -f smoke/diff_manifest.json
+          echo "smoke OK: exit code 1, manifest written"
