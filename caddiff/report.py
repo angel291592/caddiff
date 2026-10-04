@@ -142,9 +142,14 @@ def _honesty_items(summary, t):
         extra = f" ({faces} faces)" if faces else ""
         items.append(f"**{_esc(name)}** — {t('report.skipped.reason.' + _reason_key(reason))}{extra}")
     for ft in summary.get("filtered_by_threshold") or []:
-        items.append(f"**{_esc(ft.get('name'))}** — "
-                     f"{t('report.filtered', pct=_fmt_num(ft.get('volume_delta_pct'), 2),
-                          threshold=_fmt_num(ft.get('threshold_pct'), 2))}")
+        # The values are computed OUTSIDE the f-string on purpose: an f-string
+        # expression may not span lines before Python 3.12 (PEP 701). Keeping the
+        # call on one line inside the braces made this file unparseable on 3.9-3.11,
+        # i.e. everywhere except the 3.12 that CI happened to pin.
+        filtered = t("report.filtered",
+                     pct=_fmt_num(ft.get("volume_delta_pct"), 2),
+                     threshold=_fmt_num(ft.get("threshold_pct"), 2))
+        items.append(f"**{_esc(ft.get('name'))}** — {filtered}")
     for note in summary.get("unresolved_notes") or []:
         items.append(f"**{_esc(note.get('base_name'))}** — {_esc(note.get('note'))}")
     return items
