@@ -145,3 +145,57 @@ def test_missing_manifest_raises_runtime_error(tmp_path):
     import pytest
     with pytest.raises(RuntimeError):
         report.generate(str(tmp_path / "nope.json"))
+
+
+def _build_moved_out(tmp_path, detected_by):
+    """把报告输入改成一处「位移类」差异，旋转量由 `detected_by` 决定怎么来的。"""
+    out, mp = _build_out(tmp_path)
+    manifest = json.loads(mp.read_text(encoding="utf-8"))
+    manifest["summary"].update({"by_change_type": {"moved": 1}})
+    mp.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    (out / "images" / "render_manifest.json").write_text(json.dumps([{
+        "base_name": "SLIDER",
+        "instance_index": 0,
+        "change_type": "moved",
+        "overview_rect": "BRACKET_0_overview_rect.png",
+        "translation_mm": 5.0,
+        "rotation_deg": 90.0,
+        "rotation_detected_by": detected_by,
+        "new_volume": 1000.0,
+    }]), encoding="utf-8")
+    return out, mp
+
+
+def test_low_confidence_rotation_is_labelled_in_the_report(tmp_path):
+    """推断出来的旋转角必须带上置信度说明——报告与 PPT 不能两套口径。
+
+    `bbox_permutation` 是「三边长排序后一致但原始排列不同」这一【充分不必要】判据
+    推出来的，对绕轴 90° 整数倍之外的旋转不敏感。不带说明，读者会把推断值当实测值。
+    """
+    out, mp = _build_moved_out(tmp_path, "bbox_permutation")
+    html_path, md_path = report.generate(str(mp), lang="en")
+    note = i18n.t("report.value.rotation_low_confidence")
+    assert note.strip(), "en 文案不得为空"
+    for p in (html_path, md_path):
+        text = open(p, encoding="utf-8").read()
+        assert "90" in text, f"旋转角本身必须出现在 {os.path.basename(p)}"
+        assert note in text, f"置信度说明必须出现在 {os.path.basename(p)}"
+
+    # 中文侧同样要有（i18n 铁律：新增文案必须 en/zh 两份齐备）
+    out2, mp2 = _build_moved_out(tmp_path / "zh", "bbox_permutation")
+    html_zh, _ = report.generate(str(mp2), lang="zh")
+    note_zh = i18n.t("report.value.rotation_low_confidence")
+    assert _CJK.search(note_zh), "zh 文案必须是中文"
+    assert note_zh in open(html_zh, encoding="utf-8").read()
+    i18n.set_lang("en")  # 复位，避免污染其它测试
+
+
+def test_measured_rotation_gets_no_low_confidence_label(tmp_path):
+    """实测出来的旋转角不得被无端打上「低置信度」——那会把准确值说成猜测。"""
+    out, mp = _build_moved_out(tmp_path, "placement")
+    html_path, md_path = report.generate(str(mp), lang="en")
+    note = i18n.t("report.value.rotation_low_confidence")
+    for p in (html_path, md_path):
+        text = open(p, encoding="utf-8").read()
+        assert "90" in text
+        assert note not in text, f"不该出现低置信度说明：{os.path.basename(p)}"

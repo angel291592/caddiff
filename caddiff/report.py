@@ -99,7 +99,12 @@ def _change_facts(entry, t):
             facts.append((t("report.field.translation"), f"{tr} mm"))
         rot = _fmt_num(entry.get("rotation_deg"), 2)
         if rot is not None and float(rot or 0) > 0:
-            facts.append((t("report.field.rotation"), f"{rot}°"))
+            # 置信度必须跟着数字走：`bbox_permutation` 是「三边长排序后一致但排列不同」
+            # 这一【充分不必要】判据推出来的，对绕轴 90° 整数倍之外的旋转不敏感。
+            # 不带这句，读者会把一个推断值当成实测值——PPT 早就有这句，报告一直没有。
+            suffix = (t("report.value.rotation_low_confidence")
+                      if entry.get("rotation_detected_by") == "bbox_permutation" else "")
+            facts.append((t("report.field.rotation"), f"{rot}°{suffix}"))
     else:
         for key, label in (("volume_delta", "report.field.volume_delta"),
                            ("volume_delta_pct", "report.field.volume_delta_pct"),

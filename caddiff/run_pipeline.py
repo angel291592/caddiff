@@ -260,6 +260,26 @@ def run_diff(stp_old, stp_new, output_dir,
               stp_old, stp_new, bom_json],
              artifacts=artifacts)
 
+    # ── fail-closed 守卫：两份文件一个产品都没解析出来，必须报错而不是报「无差异」 ──
+    # why（真实实测）：SolidWorks 导出的 STEP 写 `PRODUCT ( 'name'`，而旧的提取正则是
+    # `PRODUCT\('`（不容空格）。machineagency/jubilee（45.7MB、143 个实体、804 条装配
+    # 关系）因此被解析成 **0 个产品** → 0 个候选 → 0 处差异 → **退出码 0**，一份真实存在
+    # 改动的装配体被 CI 闸门放行。这与「子步骤失败必须传导到退出码 2」「不做静默失败」
+    # 两条铁律直接冲突：字符串解析失败是一种执行失败，不是「没有差异」。
+    # 两边都为空才拦——只有一边为空是合法的「整件替换」，那是真差异（退出码 1）。
+    with open(bom_json, encoding="utf-8") as fh:
+        bom_probe = json.load(fh)
+    n_old = bom_probe.get("old_total_products", 0)
+    n_new = bom_probe.get("new_total_products", 0)
+    if n_old == 0 and n_new == 0:
+        raise PipelineError(
+            "no PRODUCT records found in either STEP file "
+            f"({os.path.basename(stp_old)}: 0, {os.path.basename(stp_new)}: 0). "
+            "Either the files are not STEP assemblies, or their PRODUCT syntax is "
+            "not recognised. Refusing to report 'no differences': that would make a "
+            "real change look like a clean result."
+        )
+
     # Step 2: 几何 diff（FreeCAD Python）
     geom_cmd = [_fc_python(), os.path.join(SCRIPT_DIR, "geom_diff.py"),
                 bom_json, stp_old, stp_new, geom_json]
