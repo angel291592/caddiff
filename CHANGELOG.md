@@ -13,7 +13,8 @@ commit-derived bullets. Consequences:
 
   * hand-edit ONLY the `## [Unreleased]` section. Use it for changes a commit subject
     cannot carry — above all, a field rename in `diff_manifest.json` and its
-    compatibility impact (the manifest is a machine contract, see AGENTS.md §3).
+    compatibility impact (the manifest is a machine contract — renaming or removing a
+    field is a breaking change; see CONTRIBUTING.md).
   * never hand-edit a released section: the next release pull request overwrites it.
   * release-please bumps `caddiff/version.py` (the single source of truth for the
     version) and writes new sections with an inline compare link and a date. The

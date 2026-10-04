@@ -49,7 +49,7 @@ exit code observed).
 
 <!--
 The manifest is a machine contract: renaming or removing a field is a breaking change
-that needs a minor version bump and a CHANGELOG entry under `Unreleased` (see AGENTS.md §3).
+that needs a minor version bump and a CHANGELOG entry under `Unreleased`.
 Adding a field is fine, but say so — downstream CI reads this file.
 -->
 
