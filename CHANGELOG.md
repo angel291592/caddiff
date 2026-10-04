@@ -53,7 +53,7 @@ First public release.
   geometry kernel can never be mistaken for "nothing changed".
 - **Single-machine Docker image** — `deploy/Dockerfile` bundles FreeCAD,
   OpenCASCADE and Xvfb, so one command is the whole interface:
-  `docker run --rm -v "$PWD:/data" ghcr.io/OWNER/caddiff:edge diff old.stp new.stp -o report`.
+  `docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:edge diff old.stp new.stp -o report`.
   The CLI itself has zero third-party dependencies.
 
 ### Notes
@@ -63,5 +63,5 @@ First public release.
 - Deliberately out of scope for this release: free-form surface tolerance
   analysis, GD&T annotation, and very large assemblies.
 
-[Unreleased]: https://github.com/OWNER/caddiff/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/OWNER/caddiff/releases/tag/v0.1.0
+[Unreleased]: https://github.com/angel291592/caddiff/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/angel291592/caddiff/releases/tag/v0.1.0

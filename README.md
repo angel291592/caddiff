@@ -6,11 +6,9 @@
 
 Two STEP files in, one picture of *what changed* out — plus a change list your CI can gate on.
 
-[![CI](https://github.com/OWNER/caddiff/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/caddiff/actions/workflows/ci.yml)
+[![CI](https://github.com/angel291592/caddiff/actions/workflows/ci.yml/badge.svg)](https://github.com/angel291592/caddiff/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
-
-<!-- TODO(name): OWNER/caddiff placeholders get replaced once the public repo is created. -->
 
 </div>
 
@@ -44,7 +42,7 @@ picture and a machine-readable list.
 ### Docker (recommended — nothing to install)
 
 ```console
-$ docker run --rm -v "$PWD:/data" ghcr.io/OWNER/caddiff:edge \
+$ docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:edge \
     diff /data/old.stp /data/new.stp -o /data/report
 ```
 
@@ -123,7 +121,7 @@ is buried inside the assembly it says so on the image instead of pretending the 
 ```yaml
 - name: Check geometry changes
   run: |
-    docker run --rm -v "$PWD:/data" ghcr.io/OWNER/caddiff:edge \
+    docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:edge \
       diff /data/base.stp /data/pr.stp -o /data/report
 ```
 
@@ -247,9 +245,7 @@ Technical deep-dive: [`docs/pipeline.md`](docs/pipeline.md).
 - **later** — `caddiff check` (FEA sanity checks) and `caddiff build` (sandboxed modeling).
   The namespace is reserved; nothing is promised.
 
-<!-- Star history: uncomment once the repo is public.
-[![Star History Chart](https://api.star-history.com/image?repos=OWNER/caddiff&type=Date)](https://star-history.com/#OWNER/caddiff&Date)
--->
+[![Star History Chart](https://api.star-history.com/image?repos=angel291592/caddiff&type=Date)](https://star-history.com/#angel291592/caddiff&Date)
 
 ---
 

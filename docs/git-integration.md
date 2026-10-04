@@ -118,7 +118,7 @@ Inside CI you *want* the non-zero exit code — that is the gate:
 
 ```yaml
 - run: |
-    docker run --rm -v "$PWD:/data" ghcr.io/OWNER/caddiff:edge \
+    docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:edge \
       diff /data/old.stp /data/new.stp -o /data/report
   # exit 1 fails the step, which is what you want on a PR that changes geometry
 ```
