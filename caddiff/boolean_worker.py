@@ -17,6 +17,7 @@ PART-B 那种 2MB 的 BREP 导出也只要 0.55s。
     <FreeCAD>\bin\python.exe boolean_worker.py <fc_bin> <fc_lib> <old.brep> <new.brep> <out.json>
 """
 import json
+import math
 import os
 import sys
 import time
@@ -46,6 +47,30 @@ def main():
     added = new_shape.cut(old_shape)
     diff = removed.fuse(added)
     bb = diff.BoundBox
+
+    # 【为什么必须显式判定失败】OCCT 的布尔在「两个几乎完全重合的复杂形状」之间会
+    # **静默返回退化结果**：实测（真实公开装配体 openDogV3 的 28 面零件与它自己被削掉
+    # 10.4mm³ 后的副本）common 返回 **-265.07**（负体积）、fuse 结果是空形状且 bbox 为
+    # ±DBL_MAX。若不拦，父进程只看到 diff_volume=0.0，于是把「零件被改了」当成
+    # 「无变化」静默跳过——那正是 AGENTS.md §3 禁止的静默失败。
+    # 注意：同两个零件若只差一个明显位移（0.5mm 平移副本）布尔是正常的，所以这不是
+    # 「形状本身有病」，而是近重合面导致的退化——只在这一档上拦。
+    # 注意：退化 bbox 的两端是 ±DBL_MAX（**有限值**），所以判据不能只看 XMin/XMax
+    # 是否 finite——XLength = XMax - XMin 才是 inf。踩过这个坑：只判端点时拦不住，
+    # 实测仍然静默通过。
+    finite_bbox = all(math.isfinite(v) for v in
+                      (bb.XLength, bb.YLength, bb.ZLength))
+    if diff.isNull() or not finite_bbox:
+        result = {
+            "ok": False,
+            "error": "boolean_no_result",
+            "elapsed_s": round(time.time() - t0, 3),
+            "removed_volume": removed.Volume,
+            "added_volume": added.Volume,
+        }
+        with open(out_json, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False)
+        return 0
 
     result = {
         "ok": True,

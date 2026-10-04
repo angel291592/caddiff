@@ -9,7 +9,7 @@ import json
 import os
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
@@ -32,17 +32,58 @@ def extract_product_names(stp_path):
 def base_name(name):
     """Creo每次导出会在零件名末尾追加新的实例编号段（下划线+数字）。
     截掉末尾从最后一个字母字符往后的所有内容，得到跨版本可比较的基础名。
+
+    ⚠️ 它只提供**族名**，不单独决定是否折叠——单看名字区分不了「同一零件的实例编号」
+    与「同前缀的不同零件」。是否真的折叠由 ``align_keys`` 按两版联合信息逐族决定。
     """
     last_alpha = max((i for i, c in enumerate(name) if c.isalpha()), default=len(name) - 1)
     return name[: last_alpha + 1]
+
+
+def align_keys(old_names, new_names):
+    """把两版 PRODUCT 名对齐成可比较的 key。返回 (old_key, new_key) 两个 dict。
+
+    【why 必须按族判定】实测（openDogV3 真实公开装配体，8 个实体零件）：名字形如
+    ``openDog V3_internals_toleranced v001/v002/.../v11``，`base_name` 把 8 个**不同零件**
+    折叠成同一个 key；几何层的容器判定（子对象 key 命中候选集合即判为容器）于是**自我命中**，
+    整组连同容器一起被跳过——1 处真实的 5mm 位移被报成「无差异」、退出码 0。
+    那是 CI 闸门最危险的假阴性：闸门放行了本该拦下的改动。
+
+    【规则】以 `base_name` 划分族，**逐族**决定比较用 key：
+      - 该族在两版的名字集合完全相同 -> 用**精确名**（名字稳定时零歧义，不折叠）
+      - 否则 -> 用**族名**（保留 Creo 场景：实例编号漂移、增删件仍能配上）
+
+    【why 不能逐名判定】``BOLT_02/BOLT_03`` 走精确、``BOLT_04`` 走折叠，会让族名 ``BOLT``
+    只在单边出现，凭空造出 added——见 tests/unit/test_bom_diff.py 的增删件用例。
+    """
+    old_fam, new_fam = defaultdict(list), defaultdict(list)
+    for n in old_names:
+        old_fam[base_name(n)].append(n)
+    for n in new_names:
+        new_fam[base_name(n)].append(n)
+
+    old_key, new_key = {}, {}
+    for fam in set(old_fam) | set(new_fam):
+        o_names = set(old_fam.get(fam, ()))
+        n_names = set(new_fam.get(fam, ()))
+        stable = bool(o_names) and o_names == n_names
+        for n in o_names:
+            old_key[n] = n if stable else fam
+        for n in n_names:
+            new_key[n] = n if stable else fam
+    return old_key, new_key
 
 
 def diff_bom(old_path, new_path):
     old_names = extract_product_names(old_path)
     new_names = extract_product_names(new_path)
 
-    old_counts = Counter(base_name(n) for n in old_names)
-    new_counts = Counter(base_name(n) for n in new_names)
+    # key 由两版联合决定（见 align_keys）。它同时写进产物，供几何层复用同一套 key——
+    # 几何层若自己再算一遍，就是两份真相源，必然漂移。
+    old_key, new_key = align_keys(old_names, new_names)
+
+    old_counts = Counter(old_key[n] for n in old_names)
+    new_counts = Counter(new_key[n] for n in new_names)
 
     removed = sorted(set(old_counts) - set(new_counts))
     added = sorted(set(new_counts) - set(old_counts))
@@ -67,6 +108,9 @@ def diff_bom(old_path, new_path):
         "removed": removed,
         "added": added,
         "candidates": candidates,
+        # 原始名 -> 比较用 key。几何层按 Label 查这张表，保证两层用的是同一套 key。
+        "old_key_map": old_key,
+        "new_key_map": new_key,
     }
 
 

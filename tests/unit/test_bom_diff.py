@@ -48,7 +48,47 @@ def test_diff_bom_detects_added_removed_and_count_change(tmp_path):
     mismatch = [c["base_name"] for c in res["candidates"] if not c["count_match"]]
     assert mismatch == ["BOLT"]
     # PLATE 数量未变，不应出现在 mismatch 里
-    assert [c["base_name"] for c in res["candidates"] if c["count_match"]] == ["PLATE"]
+    # key 用精确名而不是族名：该族两版名字集合相同 -> 不折叠（见 align_keys）
+    assert [c["base_name"] for c in res["candidates"] if c["count_match"]] == ["PLATE_01"]
+
+
+def test_diff_bom_keeps_distinct_parts_apart_when_names_are_stable(tmp_path):
+    """同前缀的不同零件在两版名字稳定时不得被并成一个候选。
+
+    这是 CI 闸门假阴性的复现用例：真实公开装配体（openDogV3）的 8 个实体零件名形如
+    ``openDog V3_internals_toleranced v001``..``v11``。旧规则把它们全并成同一个
+    base_name，几何层的容器判定于是**自我命中**，整组连同容器一起被跳过——1 处真实的
+    5mm 位移被报成「无差异」、退出码 0。两版名字稳定时必须逐个保留为独立候选。
+    """
+    names = ["openDog V3_internals_toleranced v001",
+             "openDog V3_internals_toleranced v002",
+             "openDog V3_internals_toleranced v11"]
+    old = _write_stp(tmp_path / "old.stp", names)
+    new = _write_stp(tmp_path / "new.stp", names)
+    res = bom_diff.diff_bom(old, new)
+
+    assert [c["base_name"] for c in res["candidates"]] == sorted(names)
+    assert res["added"] == [] and res["removed"] == []
+
+
+def test_diff_bom_folds_when_names_drift_between_versions(tmp_path):
+    """实例编号跨版本漂移时仍必须折叠——这是 base_name 存在的理由，不能被上一条改掉。"""
+    old = _write_stp(tmp_path / "old.stp", ["BRACKET-01", "BRACKET-02"])
+    new = _write_stp(tmp_path / "new.stp", ["BRACKET-07", "BRACKET-08"])
+    res = bom_diff.diff_bom(old, new)
+
+    assert [c["base_name"] for c in res["candidates"]] == ["BRACKET"]
+    assert res["added"] == [] and res["removed"] == []
+
+
+def test_diff_bom_exposes_key_map_for_the_geometry_layer(tmp_path):
+    """key_map 是几何层复用同一套 key 的载体（单一真相源）；两层各算一遍必然漂移。"""
+    old = _write_stp(tmp_path / "old.stp", ["PLATE_01"])
+    new = _write_stp(tmp_path / "new.stp", ["PLATE_01"])
+    res = bom_diff.diff_bom(old, new)
+
+    assert res["old_key_map"] == {"PLATE_01": "PLATE_01"}
+    assert res["new_key_map"] == {"PLATE_01": "PLATE_01"}
 
 
 def test_diff_bom_identical_input_has_no_differences(tmp_path):

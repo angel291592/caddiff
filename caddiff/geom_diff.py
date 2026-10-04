@@ -101,11 +101,18 @@ def get_bbox_dict(bbox):
     }
 
 
-def build_label_map(doc):
+def build_label_map(doc, key_map=None):
+    """按**比较 key** 归并对象。
+
+    key 优先取 BOM 层算好的 ``key_map``（原始名 -> key）——那是单一真相源；本函数自己
+    再算一遍就会与 BOM 层漂移（两层口径不一致 = 全部零件 "no geometry match"）。
+    查不到时才回退 ``base_name``，这样没有 key_map 的旧版 bom_diff.json 仍可跑。
+    """
+    key_map = key_map or {}
     label_map = defaultdict(list)
     for obj in doc.Objects:
         if obj.TypeId in ("Part::Feature", "App::Part"):
-            bn = base_name(obj.Label)
+            bn = key_map.get(obj.Label) or base_name(obj.Label)
             label_map[bn].append(obj)
     return label_map
 
@@ -380,8 +387,8 @@ def run(bom_json_path, stp_old, stp_new, out_json, skip_parts=None,
     Import.insert(stp_new, doc_new.Name)
     print(f"Loaded new version: {_time.time()-t0:.1f}s ({len(doc_new.Objects)} objects)")
 
-    old_map = build_label_map(doc_old)
-    new_map = build_label_map(doc_new)
+    old_map = build_label_map(doc_old, bom.get("old_key_map"))
+    new_map = build_label_map(doc_new, bom.get("new_key_map"))
 
     results = []
     # 被跳过/被筛掉的零件必须显式记录：静默跳过会让读者把"没提到"理解成"没差异"
@@ -392,14 +399,18 @@ def run(bom_json_path, stp_old, stp_new, out_json, skip_parts=None,
     total = len(bom["candidates"])
     candidate_names = {c["base_name"] for c in bom["candidates"]}
 
-    def _child_labels(objs):
-        """取这些对象在装配树里的直接子对象 Label。
+    def _child_keys(objs, key_map):
+        """取这些对象在装配树里的直接子对象的**比较 key**。
 
         why 需要它：STEP 导入会把顶层装配体建成一个 ``App::Part`` 容器，容器本身会作为
         BOM 候选进来。非容器（``Part::Feature``）没有 ``Group`` 属性，返回空表。
+
+        why 返回 key 而不是 Label：候选集合 ``candidate_names`` 装的是 key，两边口径
+        必须一致——精确匹配生效时对象的 key 与 Label 不是一回事（见 bom_diff.align_keys）。
         """
-        return [getattr(c, "Label", "") for o in objs
-                for c in (getattr(o, "Group", None) or [])]
+        key_map = key_map or {}
+        return [key_map.get(getattr(c, "Label", "")) or base_name(getattr(c, "Label", ""))
+                for o in objs for c in (getattr(o, "Group", None) or [])]
 
     for idx, cand in enumerate(bom["candidates"]):
         bn = cand["base_name"]
@@ -416,11 +427,16 @@ def run(bom_json_path, stp_old, stp_new, out_json, skip_parts=None,
         # 装配体容器（App::Part）不是零件：它的"形状"是全部子件的并集，于是**任何一个子件
         # 变化都会让容器也报一次差异**——那是重复计数，不是新信息，而且会把「2 处改动」
         # 显示成「3 处」。
-        # 判据是「它装着本次参与比对的其它候选」：没有子件的空容器仍按普通零件处理，
+        # 判据是「它装着本次参与比对的**其它**候选」：没有子件的空容器仍按普通零件处理，
         # 否则会把真实零件静默漏掉。命中时记入 skipped_parts，不静默丢弃。
+        # `k != bn` 是防御项：族名折叠生效时，容器的子对象 key 可能**等于容器自己的 bn**
+        # （实测：8 个 `... v001` 零件折叠成 `... v` 后与容器同 key），那种自我命中会把
+        # 整组真实零件一起吞掉，把「1 处位移」报成「无差异」（假阴性）。精确匹配生效时
+        # 该条件恒真，不改变本判定对真容器的行为。
         if old_objs and new_objs and any(
-                base_name(k) in candidate_names
-                for k in _child_labels(old_objs) + _child_labels(new_objs)):
+                k in candidate_names and k != bn
+                for k in (_child_keys(old_objs, bom.get("old_key_map"))
+                          + _child_keys(new_objs, bom.get("new_key_map")))):
             skipped_parts.append({"name": bn, "reason": "assembly_container"})
             print("skipped (assembly container)")
             continue
