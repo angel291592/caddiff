@@ -8,9 +8,8 @@
 //      pip 装不到系统 Python 里（见 docs/pipeline.md「环境约束」）。
 //      所以容器只负责：CLI 编排、BOM 对齐、报告生成、`pytest tests/unit`。
 //      几何/渲染请用官方镜像跑（README 首屏与 docs/pipeline.md 都有这条命令）：
-//        docker run --rm -v "$PWD:/data" ghcr.io/OWNER/caddiff:edge \
+//        docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:edge \
 //          diff /data/old.stp /data/new.stp -o /data/report
-//      OWNER/caddiff 是占位符，发布前替换。
 //   3. 故意**不挂 docker socket / 不开 docker-in-docker**：那等于把宿主 docker 权限交给容器，
 //      默认不该开。上面的命令在宿主（或 CI job）里跑即可。
 {
@@ -25,7 +24,7 @@
   // 核心依赖为空（pyproject.toml），[pptx] 是唯一可选 extra。
   // 若该 feature 装的是共享解释器、非 root 用户写入 site-packages 报权限错误，
   // 改用 `pip install --user -e '.[pptx]'` 即可（未在本机实测，本机无 docker daemon）。
-  "postCreateCommand": "pip install -e '.[pptx]' && printf '\\n=== caddiff dev container ready ===\\nGeometry and rendering steps need FreeCAD, which is deliberately NOT installed here\\n(building it takes tens of minutes and would wreck the first-run experience).\\nRun `caddiff diff` through the official image instead:\\n  docker run --rm -v \"$PWD:/data\" ghcr.io/OWNER/caddiff:edge diff /data/old.stp /data/new.stp -o /data/report\\nPure-Python work (CLI, BOM alignment, report generation) and `pytest tests/unit` run fine here.\\n'",
+  "postCreateCommand": "pip install -e '.[pptx]' && printf '\\n=== caddiff dev container ready ===\\nGeometry and rendering steps need FreeCAD, which is deliberately NOT installed here\\n(building it takes tens of minutes and would wreck the first-run experience).\\nRun `caddiff diff` through the official image instead:\\n  docker run --rm -v \"$PWD:/data\" ghcr.io/angel291592/caddiff:edge diff /data/old.stp /data/new.stp -o /data/report\\nPure-Python work (CLI, BOM alignment, report generation) and `pytest tests/unit` run fine here.\\n'",
   "customizations": {
     "vscode": {
       "extensions": [

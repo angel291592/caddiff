@@ -49,7 +49,7 @@ body:
         - Free-form surface tolerance analysis / point-cloud deviation
         - GD&T annotation and drawing-level semantics
         - Very large assemblies (the render step is serial and already takes minutes)
-        - Merging or editing models (cadiff reports; it does not merge)
+        - Merging or editing models (caddiff reports; it does not merge)
         - A hosted service / uploading my models somewhere
         - None of these
         - Not sure

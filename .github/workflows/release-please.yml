@@ -4,26 +4,26 @@
 # This workflow is only the trigger. The behaviour lives in two files that MUST
 # exist next to it, both committed at the repository root:
 #
-#   release-please-config.json      release-type: python, package-name: cadiff
+#   release-please-config.json      release-type: python, package-name: caddiff
 #   .release-please-manifest.json   the version already released (single package ".")
 #
 # WHY `release-type: python` IS THE RIGHT TYPE HERE (verified against
 # release-please's Python strategy, not assumed):
 #   * it searches the repository for files *named* `version.py` and rewrites the
-#     `__version__ = "x.y.z"` line in each of them — so `cadiff/version.py`, our
+#     `__version__ = "x.y.z"` line in each of them — so `caddiff/version.py`, our
 #     single source of truth for the version, is bumped automatically. No
 #     `extra-files` entry is needed for it.
 #   * `pyproject.toml` declares `dynamic = ["version"]`; the Python strategy
 #     detects that and skips the file with a warning instead of failing the run.
-#   * apart from `cadiff/version.py` and `CHANGELOG.md`, nothing else is touched.
+#   * apart from `caddiff/version.py` and `CHANGELOG.md`, nothing else is touched.
 #
 # TAG FORMAT: `include-component-in-tag: false` keeps tags at `v0.2.0` instead of
-# `cadiff-v0.2.0`. AGENTS.md §6 requires image tag ↔ source tag ↔ build script to
+# `caddiff-v0.2.0`. AGENTS.md §6 requires image tag ↔ source tag ↔ build script to
 # line up one-to-one, and the plain `vX.Y.Z` form is what the Docker build and the
 # docs assume.
 #
 # MANIFEST BASELINE: `.release-please-manifest.json` says `0.1.0`, which is what
-# `cadiff/version.py` and the `[0.1.0]` section of CHANGELOG.md already say. So
+# `caddiff/version.py` and the `[0.1.0]` section of CHANGELOG.md already say. So
 # 0.1.0 counts as released and the first release PR this workflow opens will be
 # for the *next* version. To let release-please cut `v0.1.0` itself instead, set
 # the manifest to `0.0.0` before the first run on `main`.

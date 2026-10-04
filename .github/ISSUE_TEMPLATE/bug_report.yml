@@ -27,7 +27,7 @@ body:
         FreeCAD Python, see `README.md`):
 
         ```console
-        $ <FREECAD_PYTHON> cadiff/make_moved_fixture.py examples/fixtures
+        $ <FREECAD_PYTHON> caddiff/make_moved_fixture.py examples/fixtures
         ```
 
         For a security problem, stop here and follow `SECURITY.md` (private advisory)
@@ -36,12 +36,12 @@ body:
   - type: dropdown
     id: how-run
     attributes:
-      label: How are you running cadiff?
+      label: How are you running caddiff?
       description: The container image is the supported path; a local FreeCAD install is best-effort.
       options:
-        - Docker image (ghcr.io/OWNER/caddiff)
+        - Docker image (ghcr.io/angel291592/caddiff)
         - Local FreeCAD install (FREECAD_PYTHON set)
-        - From source (python cadiff/cli.py)
+        - From source (python caddiff/cli.py)
         - GitHub Action (action.yml)
         - Other / not sure
     validations:
@@ -50,9 +50,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: Output of `cadiff --version`
+      label: Output of `caddiff --version`
       description: Exact string, please — it pins the version and the image tag together.
-      placeholder: "cadiff 0.1.0"
+      placeholder: "caddiff 0.1.0"
     validations:
       required: true
 
@@ -63,7 +63,7 @@ body:
       description: The whole invocation, including `docker run` flags if you used the image.
       render: console
       placeholder: |
-        docker run --rm -v "$PWD:/data" ghcr.io/OWNER/caddiff:edge \
+        docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:edge \
           diff /data/old.stp /data/new.stp -o /data/report
     validations:
       required: true

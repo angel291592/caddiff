@@ -19,8 +19,8 @@ Any change to geometric classification, boolean diffing, viewpoint selection, th
 highlight overlay or the report layout must show the images it produces. Attach the
 PNGs (drag them in) and say which fixture produced them, e.g.:
 
-  python cadiff/make_moved_fixture.py examples/fixtures
-  cadiff diff examples/fixtures/moved_old.stp examples/fixtures/moved_new.stp -o out
+  python caddiff/make_moved_fixture.py examples/fixtures
+  caddiff diff examples/fixtures/moved_old.stp examples/fixtures/moved_new.stp -o out
 
 before: <image>
 after:  <image>

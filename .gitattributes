@@ -19,7 +19,7 @@
 *.brep  binary
 *.3mf   binary
 
-# 让 `git diff` 对 CAD 文件自动调用 cadiff（可选，需先按 docs/git-integration.md 配置）
-# 取消下面两行的注释即可启用；注意这要求 cadiff 在 PATH 上。
-# *.stp  diff=cadiff
-# *.step diff=cadiff
+# 让 `git diff` 对 CAD 文件自动调用 caddiff（可选，需先按 docs/git-integration.md 配置）
+# 取消下面两行的注释即可启用；注意这要求 caddiff 在 PATH 上。
+# *.stp  diff=caddiff
+# *.step diff=caddiff
