@@ -452,6 +452,7 @@ summary.settings                      本次实际生效的闸门取值（便于
 - **单次运行约 355~366s**（实测：BOM 0s / 几何 155~167s / 渲染 197~198s / PPT 1s），必须做成**异步任务或长超时的 CI 步骤**，不要挂在同步请求上。耗时随差异数增长（渲染约 22s/处：26 个候选视角 × 0.85s），渲染超时按差异数估算而非写死。
 - **渲染依赖 FreeCAD 完整 GUI 模式**（`showMainWindow()`），会短暂弹窗，需虚拟显示（Xvfb 之类）或接受弹窗。`setupWithoutGUI()` 试过不可用（无法创建 ActiveDocument/ActiveView）。
 - **布尔运算会再 fork 一层子进程**（`boolean_worker.py`），容器里要允许创建子进程，并给 `tempfile` 可写目录（BREP 落盘用，实测单个零件最大约 2.5MB）。
+- **容器镜像必须装 `x11-utils`（提供 `xdpyinfo`）**：`deploy/docker-entrypoint.sh` 用 `xvfb-run` 提供虚拟显示，而 `xvfb-run` 靠 `xdpyinfo` 轮询判断 X server 是否就绪——缺了它，Xvfb 起来了但 python **从未被启动**，症状是容器 CPU 0%、零输出、不退出（实测：第一次真实运行镜像即踩到，`docker logs` 全程 0 行、`ps` 里只有 `sh` 与 `Xvfb`）。`apt install xvfb` **不会**自动带进这个依赖，必须显式装。
 - 中文字体：容器内若没有 CJK 字体，图上中文会变豆腐块。`FONT_CANDIDATES` 已含 Linux 常见路径（Noto CJK / wqy），全未命中时会打印显著警告——**部署时要把这条警告当失败信号**，不要忽略（否则产出的是"能看但没字"的图）。
 - **并发未验证**：单进程单 GUI 的假设下写的，同一台机器并行跑多个实例是否互相干扰（ActiveView 抢占、临时目录冲突）**没有实测过**，先按串行队列部署。
 
