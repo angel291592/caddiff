@@ -1,0 +1,107 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# pages-demo — publish the sample report as a browsable GitHub Pages site.
+#
+# WHY THIS EXISTS: caddiff is a visual tool. A visitor deciding "does this thing
+# earn my install?" should be able to SEE a real output report without installing
+# anything. examples/expected/ is exactly that — a complete, self-contained
+# report (HTML + per-change images + JSON manifest) produced by caddiff from the
+# synthetic fixture in examples/fixtures. Zero customer data, generated sources.
+#
+# WHAT GETS PUBLISHED (https://angel291592.github.io/caddiff/):
+#   report.html       the full sample report
+#   images/*.png      every per-change render that report references
+#   summary.json      the machine-readable summary (same data CI reads)
+#   report.md         the Markdown twin (good for PR comments)
+# plus a generated index.html that links to it. NOT published:
+# examples/fixtures/*.stp — keep this repo's registry of downloadable STEP files
+# in `examples/` where the licensing note already lives.
+#
+# SOURCE OF TRUTH: this workflow derives its file list from `examples/expected/`
+# at build time — editing those files and merging to main refreshes the site. No
+# side branch to maintain (the site is deployed from the Pages action runner).
+# ─────────────────────────────────────────────────────────────────────────────
+name: Pages demo report
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'examples/expected/**'
+      - '.github/workflows/pages-demo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time; a queued build should replace, not stack.
+concurrency:
+  group: pages-demo
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      # The index is generated here instead of committed: it must always agree
+      # with the directory it references (a committed copy drifts silently).
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          cp -r examples/expected/. _site/
+          cat > _site/index.html <<'HTML'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>caddiff — sample diff report</title>
+            <style>
+              body{font-family:system-ui,sans-serif;max-width:52rem;margin:3rem auto;padding:0 1rem;line-height:1.5;color:#1f2328}
+              a{color:#0969da}
+              code{background:#f6f8fa;padding:.1em .3em;border-radius:4px;}
+              .card{border:1px solid #d1d9e0;border-radius:8px;padding:1rem 1.25rem;margin:1rem 0}
+            </style>
+          </head>
+          <body>
+            <h1>caddiff — sample report</h1>
+            <p>This is <a href="https://github.com/angel291592/caddiff">caddiff</a>'s own
+               output for the synthetic fixture in <code>examples/</code> — a 3-part
+               assembly where one part moved 5 mm and one feature was removed.
+               Everything you will read was generated, unedited, by
+               <code>caddiff diff moved_old.stp moved_new.stp -o report</code>.</p>
+            <div class="card">
+              <a href="report.html"><b>Open the full report →</b></a>
+              <p>Rendered images with the changed geometry highlighted, the measured
+                 displacement, and the honest gaps (what could not be compared and why).
+                 The same content exists as <a href="report.md">report.md</a>.</p>
+            </div>
+            <div class="card">
+              <a href="summary.json"><b>summary.json →</b></a>
+              <p>The machine-readable summary your CI reads — this is what
+                 <code>exit code 1</code> looks like inside.</p>
+            </div>
+          </body>
+          </html>
+          HTML
+          ls _site
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

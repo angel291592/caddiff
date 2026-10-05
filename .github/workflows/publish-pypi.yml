@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# publish-pypi — build the caddiff package and upload it to PyPI.
+#
+# TRIGGERS — read this before assuming the release event "should just work":
+#   * release: published
+#   * workflow_dispatch  (manual, one click)
+#
+# KNOWN GOTCHA (same one docker-publish.yml already hit): release-please creates
+# the tag + GitHub release with the default GITHUB_TOKEN, and events triggered by
+# that token DO NOT cascade into other workflows. So a fresh release will NOT
+# auto-run this job until release-please is reconfigured with a PAT (see the
+# token: note in release-please.yml). Until then, Publishing works exactly like
+# the Docker publish: dispatch it manually against the release tag.
+#
+# NO FREECAD NEEDED HERE. The wheel is the zero-dependency orchestration layer
+# (see pyproject.toml: dependencies = []); geometry/rendering run inside FreeCAD,
+# which the *image or the user's local FreeCAD* provides, never this package.
+# That is also why this workflow builds in under a minute.
+#
+# ONE-TIME SETUP (repository owner, web UI, ~2 minutes — Trusted Publisher):
+#   1. Log in to pypi.org, create the empty project `caddiff` once via
+#      https://pypi.org/manage/project/... no manual upload needed: instead open
+#      https://pypi.org/manage/account/publishing/ and add a pending publisher:
+#        owner: angel291592     repo: caddiff
+#        workflow: publish-pypi.yml
+#        environment: pypi
+#   2. Nothing else. This workflow uploads with OIDC (no token secret stored).
+#      The `environment: pypi` below must match the pending-publisher entry.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# OIDC upload requires id-token; contents: read is the minimum for checkout.
+permissions:
+  contents: read
+  id-token: write
+
+# Two releases in quick succession must not race each other onto PyPI.
+concurrency:
+  group: pypi-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: build + twine check + upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --quiet --upgrade build twine
+          python -m build --sdist --wheel --outdir dist .
+
+      # Fail loudly on malformed metadata BEFORE touching the registry: once a
+      # bad version is on PyPI, that version number is burned forever.
+      - name: Run twine check
+        run: python -m twine check --strict dist/*
+
+      - name: Upload to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
