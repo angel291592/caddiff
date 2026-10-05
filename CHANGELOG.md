@@ -22,6 +22,14 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.3.1](https://github.com/angel291592/caddiff/compare/v0.3.0...v0.3.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **geom:** report same-name parts the pairing guard rejects, never drop them ([62e89ca](https://github.com/angel291592/caddiff/commit/62e89cae0f0d7a7f291ed08416736280050e40fb))
+* **pptx:** stop silently dropping unresolved notes on the no-difference slide ([ebd491c](https://github.com/angel291592/caddiff/commit/ebd491cc48e7e2ac26c813a89fcac1ba66fd5982))
+
 ## [0.3.0](https://github.com/angel291592/caddiff/compare/v0.2.1...v0.3.0) (2026-10-04)
 
 
