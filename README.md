@@ -208,7 +208,13 @@ Being explicit about the boundaries, because a tool that over-promises is worse 
 - **Part pairing is heuristic.** Same-named parts are matched by bounding-box proximity
   with a 50 % volume guard. This works well for the common "same assembly, edited in
   place" case and is **known to be weak** when parts are renamed wholesale or the whole
-  assembly is moved. Unmatched parts are reported, never guessed.
+  assembly is moved. Unmatched parts are reported, never guessed. Measured on 24 pairs of
+  real public assemblies: every structural change was caught, but 7 of 15 structurally
+  unchanged pairs still report BOM add/remove pairs purely from **renames** (human renames,
+  exporter auto-names, even case-only changes) — the name really did change, and geometry
+  cannot pair across names, so read a symmetric added/removed list as "something was
+  renamed". A same-named part that changed beyond the 50 % pairing guard is reported as a
+  whole-part change (degraded, clearly labelled), never dropped.
 - **No merge.** `caddiff` tells you what changed. It does not merge two STEP files, and it
   will not try.
 - **No hosted service.** Everything runs locally or in your own CI. Nothing is uploaded.

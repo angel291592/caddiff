@@ -134,10 +134,21 @@ def pair_by_proximity(old_objs, new_objs):
     """按bbox中心距离+体积相似度联合评分做最近邻配对（贪心）。
     体积差异过大的候选对会被过滤掉，避免"中心距离最近但根本不是同一物理部件"的误配对
     （已实测：仅用距离配对时，一个体积341mm³的壳体会被错配到一个体积75mm³的薄片上）。
+
+    返回 4 元组：``(paired, unpaired_old, unpaired_new, no_shape_objs)``。
+    未配对**必须两侧对称返回**：体积差 >50% 的零件本来就是形状大改的一处，把它从
+    配对结果里筛掉却不告知，等于把真实改动静默丢弃（gate1 语料实测的假阴性，见坑 J3）。
+    无形状（isNull）的对象不进配对池，但**必须随返回值带出**交给调用方记
+    ``skipped_parts``——无声消失就是静默失败。
+
+    双侧孤儿由调用方按最近中心 1:1 就地配对并**降级报差异**（不宣称"同一个零件"，
+    只取双侧 bbox/体积）；孤儿对的位移不进全局配准判据。
     """
     old_features = [(o, get_shape(o)) for o in old_objs]
+    no_shape_objs = [o for o, s in old_features if s is None]
     old_features = [(o, s) for o, s in old_features if s is not None]
     new_features = [(o, get_shape(o)) for o in new_objs]
+    no_shape_objs += [o for o, s in new_features if s is None]
     new_features = [(o, s) for o, s in new_features if s is not None]
 
     paired = []
@@ -164,7 +175,9 @@ def pair_by_proximity(old_objs, new_objs):
             paired.append((old_obj, best[1]))
         else:
             unpaired_old.append(old_obj)
-    return paired, unpaired_old
+    unpaired_new = [new_obj for i, (new_obj, _) in enumerate(new_features)
+                    if i not in used_new]
+    return paired, unpaired_old, unpaired_new, no_shape_objs
 
 
 def placement_delta(old_shape, new_shape):
@@ -369,6 +382,30 @@ def check_global_alignment(pair_shifts):
 
 
 
+def _pair_orphans(unpaired_old, unpaired_new):
+    """双侧孤儿按最近中心 1:1 就地配对（无体积筛）。
+
+    why 不套体积筛：孤儿正是被「体积差>50% 不可信」的筛从全族里剩下的，在孤儿之间
+    再套同一个筛只会把两边全部剩空。就近配对的目的只是给差异条目配齐双侧 bbox/体积
+    供渲染与报告显示，**不宣称两侧是「同一个物理零件」**——单侧落单时该侧字段置
+    None，渲染层对缺失对象优雅降级（precompute_shapes 的 ``!!`` 分支）。
+    返回的位移不得进全局配准判据（调用方保证）。
+    """
+    leftover_new = list(unpaired_new)
+    out = []
+    for o in unpaired_old:
+        center = get_shape(o).BoundBox.Center
+        if leftover_new:
+            best = min(range(len(leftover_new)),
+                       key=lambda j: center.distanceToPoint(
+                           get_shape(leftover_new[j]).BoundBox.Center))
+            out.append((o, leftover_new.pop(best)))
+        else:
+            out.append((o, None))
+    out.extend((None, n) for n in leftover_new)
+    return out
+
+
 def run(bom_json_path, stp_old, stp_new, out_json, skip_parts=None,
         min_diff_pct=None, boolean_timeout=None, max_faces=None):
     with open(bom_json_path, "r", encoding="utf-8") as f:
@@ -461,16 +498,60 @@ def run(bom_json_path, stp_old, stp_new, out_json, skip_parts=None,
             print("no geometry match")
             continue
 
+        no_shape_objs = []
         if cand["old_count"] == 1:
             pairs = [(old_objs[0], new_objs[0])]
-            unpaired = []
+            unpaired_old, unpaired_new = [], []
         else:
-            pairs, unpaired = pair_by_proximity(old_objs, new_objs)
+            pairs, unpaired_old, unpaired_new, no_shape_objs = pair_by_proximity(
+                old_objs, new_objs)
 
-        if unpaired:
+        # 形状读不出的对象必须留痕（另一条静默通道的封堵，见坑 J3）
+        for _ in no_shape_objs:
+            skipped_parts.append({"name": bn, "reason": "no_shape"})
+            print("no shape (pairing pool)")
+
+        if unpaired_old:
             # 配对不上的旧对象：可能是同名部件在新版被重构（如Part::Feature变成了App::Part子装配，
             # 或体积差异过大导致联合评分排除），必须显式记录交人工复核，不能静默丢弃。
-            entry["unpaired_old_labels"] = [o.Label for o in unpaired]
+            entry["unpaired_old_labels"] = [o.Label for o in unpaired_old]
+        if unpaired_new:
+            entry["unpaired_new_labels"] = [o.Label for o in unpaired_new]
+
+        # 孤儿＝配对器按「体积差>50% 不可信」筛掉的对象，正是形状大改的零件（坑 J3，
+        # gate1 语料实测：6 件同名 SOLID 里 1 件体积减半被报成"无差异"）。双侧剩余件
+        # 就近 1:1 配对（只取双侧 bbox/体积，不宣称"同一个零件"），每对降级报一条
+        # shape_changed；单侧落单的孤儿各自单侧报告。位移不进 pair_shifts——配准判据
+        # 不吃不确信的对。
+        for oi, (old_o, new_o) in enumerate(_pair_orphans(unpaired_old, unpaired_new)):
+            old_shape = get_shape(old_o) if old_o is not None else None
+            new_shape = get_shape(new_o) if new_o is not None else None
+            # render_diff 对 bbox / instance_index 是**直接下标**（:1185/:1776），
+            # 每个条目都必须带全；instance_index 顺延在家族实例区内，不与已配对序号冲突。
+            change_entry = {
+                "instance_index": len(pairs) + oi,
+                "change_type": "shape_changed",
+                "old_label": old_o.Label if old_o is not None else None,
+                "new_label": new_o.Label if new_o is not None else None,
+                "old_volume": old_shape.Volume if old_shape is not None else None,
+                "new_volume": new_shape.Volume if new_shape is not None else None,
+                # 布尔没跑，这不是对称差；双侧数值只当"变化规模的证据"，单侧为 None。
+                "volume_delta": (abs(old_shape.Volume - new_shape.Volume)
+                                 if (old_shape is not None
+                                     and new_shape is not None) else None),
+                "volume_delta_pct": None,
+                # render_diff 的 bbox 直接下标：永远取"存在侧"自身 bbox 兜底。
+                "bbox": get_bbox_dict(
+                    (new_shape if new_shape is not None else old_shape).BoundBox),
+                "bbox_old": (get_bbox_dict(old_shape.BoundBox)
+                             if old_shape is not None else None),
+                "highlight_mode": "whole_part",
+                "degraded_reason": "unpaired_after_proximity",
+            }
+            if old_o is not None:
+                change_entry["parent_chain"] = get_parent_chain(old_o)
+            entry["geometric_changes"].append(change_entry)
+            print("[unpaired degraded] ", end="", flush=True)
 
         t_part = _time.time()
         for i, (old_obj, new_obj) in enumerate(pairs):
@@ -597,7 +678,8 @@ def run(bom_json_path, stp_old, stp_new, out_json, skip_parts=None,
             })
 
         elapsed = _time.time() - t_part
-        if entry["geometric_changes"] or entry.get("unpaired_old_labels"):
+        if (entry["geometric_changes"] or entry.get("unpaired_old_labels")
+                or entry.get("unpaired_new_labels")):
             results.append(entry)
             n_moved = sum(1 for c in entry["geometric_changes"]
                           if c.get("change_type") == "moved")

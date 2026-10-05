@@ -87,6 +87,9 @@ _LANGS = {
         "report.skipped.reason.assembly_container": (
             "assembly container — its shape is the union of its children, so it is not "
             "counted separately"),
+        "report.skipped.reason.unpaired_after_proximity": (
+            "part could not be confidently paired between the two versions "
+            "(shape changed beyond the pairing threshold) — highlight is the whole part"),
         "report.skipped.reason.other": "not compared",
         "report.filtered": ("filtered out — {pct}% change is below the "
                             "{threshold}% threshold"),
@@ -140,6 +143,7 @@ _LANGS = {
         "report.skipped.reason.worker_failed": "布尔子进程执行失败",
         "report.skipped.reason.boolean_no_result": "对称差算不出来——两个近乎重合的形状让 OCCT 返回了退化结果",
         "report.skipped.reason.assembly_container": "装配体容器——其形状是全部子件的并集，不单独计数",
+        "report.skipped.reason.unpaired_after_proximity": "零件在两版间无法可信配对（形状变化超出配对阈值）——高亮为整个零件",
         "report.skipped.reason.other": "未参与比对",
         "report.filtered": "被筛除——体积变化 {pct}% 低于 {threshold}% 阈值",
         "report.footer": "由 caddiff 生成 · manifest 版本 {version}",

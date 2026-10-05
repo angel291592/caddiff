@@ -163,7 +163,7 @@ def _honesty_items(summary, t):
 def _reason_key(reason):
     """把机器枚举映射到文案键。未知原因归到 other，不猜语义。"""
     known = {"user_skipped", "no_shape", "too_complex", "timeout", "assembly_container",
-             "boolean_no_result"}
+             "boolean_no_result", "unpaired_after_proximity"}
     if reason in known:
         return reason
     if reason.startswith("brep_export_failed"):
