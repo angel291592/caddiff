@@ -1709,22 +1709,9 @@ def run(geom_json_path, stp_old, stp_new, output_dir,
         # 用户无法区分"没有差异"与"程序坏了"。
         # 此处 GUI 尚未初始化，也【不要】启动它——省 3s 且避免无谓弹窗。
         manifest_path = write_manifest(output_dir, [])
-        summary = {
-            "diff_count": 0,
-            "reason": t("summary.no_geometry_diff"),
-            "total_candidates": geom.get("total_candidates"),
-            "label_old": lbl_old,
-            "label_new": lbl_new,
-            "skipped_parts": geom.get("skipped_parts", []),
-            "filtered_by_threshold": geom.get("filtered_by_threshold", []),
-            "global_alignment": geom.get("global_alignment", {}),
-            "notes": [{"base_name": d.get("base_name"), "note": d.get("note")}
-                      for d in geom["geometric_diffs"] if d.get("note")],
-        }
-        with open(os.path.join(output_dir, "render_summary.json"), "w",
-                  encoding="utf-8") as f:
-            json.dump(summary, f, ensure_ascii=False, indent=2)
-        print("No geometric differences to render (wrote an empty manifest and render_summary.json)")
+        # 无差异的原因由 build_summary 汇总进 diff_manifest.json 的 summary 块
+        # （决策 D-024）；这里不再写第二份 summary——两套口径必然漂移。
+        print("No geometric differences to render (wrote an empty manifest)")
         print(f"Manifest: {manifest_path}")
         return
 

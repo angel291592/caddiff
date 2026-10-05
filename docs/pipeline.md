@@ -449,6 +449,8 @@ summary.filtered_by_threshold[]       被 --min-diff-pct 筛掉的
 summary.global_alignment_warning      true = 两版整体配准疑似不一致，差异可能大量为伪差异
 summary.total_candidates              比对候选零件数
 summary.settings                      本次实际生效的闸门取值（便于复现与调参）
+summary.reason                        仅 has_differences=false 时出现；
+                                      两版未检出差异的有效结论说明
 ```
 
 **中间的三个 `skipped/unresolved/filtered` 是"诚实性"字段：不回传给用户，就等于让读者把"没提到"理解成"没差异"。** 逐差异的图片路径与像素自检数仍在 `render_manifest.json`，需要贴图或做校验时才读它。

@@ -253,7 +253,7 @@ def build_empty_slide(prs, summary):
 
     # 诚实性区块：被跳过 / 未解析 / 数量不一致的零件必须显式列出
     skipped = summary.get("skipped_parts") or []
-    notes = summary.get("notes") or []
+    notes = summary.get("unresolved_notes") or []
     filtered = summary.get("filtered_by_threshold") or []
     if skipped or notes or filtered:
         p = tf.add_paragraph()
@@ -541,11 +541,7 @@ def run(manifest_path, output_pptx):
     summary = _load_summary(manifest_path)
 
     if not manifest:
-        # render_summary.json 由 render_diff 在无差异时同步写出
-        summary_path = os.path.join(base_dir, "render_summary.json")
-        if not summary and os.path.exists(summary_path):
-            with open(summary_path, "r", encoding="utf-8") as f:
-                summary = json.load(f)
+        # summary 来自父目录 diff_manifest.json（决策 D-024：无差异原因也在契约里）
         build_empty_slide(prs, summary)
         prs.save(output_pptx)
         print(f"PPTX saved: {output_pptx}")

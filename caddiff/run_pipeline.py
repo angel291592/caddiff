@@ -220,6 +220,11 @@ def build_summary(bom_json, geom_json, render_manifest, label_old="", label_new=
 
     summary["has_differences"] = bool(
         summary["bom_diff_count"] or summary["geometry_diff_count"])
+    if not summary["has_differences"]:
+        # 无差异的原因必须进契约：summary 块对调用方承诺"读它就够"（docs/pipeline.md §9），
+        # 新增可选字段允许不改版本号（AGENTS.md §3.2）。几何空但 BOM 有差异时不写——
+        # 那是 has_differences=True 的场景，写"无几何差异"会误导 JSON 消费者误读结论。
+        summary["reason"] = i18n.t("summary.no_geometry_diff")
     return summary
 
 

@@ -6,6 +6,7 @@
 """
 import json
 
+import i18n
 import run_pipeline
 
 
@@ -50,6 +51,17 @@ def test_no_differences_anywhere(tmp_path):
     assert s["has_differences"] is False
     assert s["bom_diff_count"] == 0
     assert s["geometry_diff_count"] == 0
+    # 无差异的原因必须在契约的 summary 块里（单一入口承诺；决策 D-024）
+    assert s["reason"] == i18n.t("summary.no_geometry_diff")
+
+
+def test_reason_absent_when_there_are_differences(tmp_path):
+    # has_differences=True 时不得写 reason："无几何差异"会让 JSON 消费者误读结论
+    s = _summary(tmp_path,
+                 bom={"removed": ["OLD-A"], "added": [], "candidates": []},
+                 manifest=[])
+    assert s["has_differences"] is True
+    assert s.get("reason") is None
 
 
 def test_geometry_only_difference(tmp_path):
