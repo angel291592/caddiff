@@ -43,3 +43,4 @@ venv/
 .cursor/
 .mcp.json
 .code-review-graph/
+.intent/

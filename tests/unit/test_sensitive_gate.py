@@ -125,6 +125,7 @@ def test_forbidden_paths_are_caught():
     assert {r for _, _, r in gate.check_path("dump/export.tgz")} == {"archive"}
     assert {r for _, _, r in gate.check_path("_internal/notes.md")} == {"internal-dir"}
     assert {r for _, _, r in gate.check_path("tests/_scratch/verify.py")} == {"internal-dir"}
+    assert {r for _, _, r in gate.check_path(".intent/run.intent.yaml")} == {"internal-dir"}
     # 本机专属文件：按名字拦，内容规则扫不出来（既无密钥也无专属词表命中项）
     assert {r for _, _, r in gate.check_path("AGENTS.md")} == {"local-only-file"}
     assert {r for _, _, r in gate.check_path("nested/AGENTS.md")} == {"local-only-file"}

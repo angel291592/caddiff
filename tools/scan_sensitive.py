@@ -79,7 +79,7 @@ FORBIDDEN_PATHS = [
     (re.compile(r"(?i)\.(tgz|tar\.gz|zip|7z|rar)$"), "archive", ()),
     (re.compile(r"(?i)(^|/)(id_rsa|id_ed25519|\.netrc|\.npmrc|\.pypirc|credentials)$"),
      "credential-file", ()),
-    (re.compile(r"(?i)(^|/)(_internal|_probe_demo|tests/_scratch)/"), "internal-dir", ()),
+    (re.compile(r"(?i)(^|/)(_internal|_probe_demo|tests/_scratch|\.intent)/"), "internal-dir", ()),
     # 本机专属文件（本地开发规范）——按名字拦，不看内容。
     # why 必须单独有一条：`.gitignore` 只是约定，拦不住 `git add -f`、会被删掉、在别人的
     # 克隆里也不生效；而这类文件**内容规则扫不出来**（既无密钥也不含专属词表命中项），
@@ -179,7 +179,12 @@ def scan_text(text, label, terms):
 def check_path(path):
     """按路径规则检查单个文件路径。"""
     findings = []
-    norm = path.replace("\\", "/").lstrip("./")
+    # 只剥 `./` 重复前缀与开头的 `/`——不能用 ``lstrip("./")``：它按字符集剥，
+    # 会把根级隐藏路径开头的点也吃掉（`.intent/x` → `intent/x`），使所有
+    # `(^|/)\.something/` 型规则对根级隐藏目录静默失明（`.env` 的根级形态同理）。
+    norm = path.replace("\\", "/").lstrip("/")
+    while norm.startswith("./"):
+        norm = norm[2:]
     for rx, name, allow in FORBIDDEN_PATHS:
         if not rx.search(norm):
             continue
