@@ -27,7 +27,7 @@
 # fail, and only exit code 2 (execution failure) fails the action.
 #
 # USAGE
-#   - uses: angel291592/caddiff@v0.1.0
+#   - uses: angel291592/caddiff@v0.3.1
 #     id: caddiff
 #     with:
 #       old: models/base.stp
