@@ -22,6 +22,15 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.3.2](https://github.com/angel291592/caddiff/compare/v0.3.1...v0.3.2) (2026-10-05)
+
+
+### Documentation
+
+* **pipeline:** rewrite module docs in English, mirror stays at pipeline.zh-CN.md ([c233f6a](https://github.com/angel291592/caddiff/commit/c233f6ab0d0ab9cba7e5247bfdf6233e270fe739))
+* **readme:** add GitHub Action usage, pin released image tags, link the demo report ([f52aad2](https://github.com/angel291592/caddiff/commit/f52aad2c5a43a054e4f8ffef846019a7ac24ea0b))
+* **zh:** add Simplified Chinese mirrors for all public docs ([3575ae2](https://github.com/angel291592/caddiff/commit/3575ae26e7d01a3eb449a37a6b4685988d009f21))
+
 ## [0.3.1](https://github.com/angel291592/caddiff/compare/v0.3.0...v0.3.1) (2026-10-05)
 
 
