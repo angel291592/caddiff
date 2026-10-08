@@ -104,7 +104,7 @@ $ git config --global difftool.caddiff.cmd \
 
 ```yaml
 - run: |
-    docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.3.2 \
+    docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.3.3 \
       diff /data/old.stp /data/new.stp -o /data/report
   # exit 1 fails the step, which is what you want on a PR that changes geometry
 ```
