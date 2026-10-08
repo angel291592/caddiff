@@ -2,22 +2,22 @@
 
 # caddiff
 
-[English](README.md) | 简体中文
+[English](https://github.com/angel291592/caddiff/blob/main/README.md) | 简体中文
 
 **CAD 装配体的 git diff。**
 
 两个 STEP 文件进，一张*改了什么*的图出 —— 外加一份你的 CI 可以拿来当闸门的差异清单。
 
 [![CI](https://github.com/angel291592/caddiff/actions/workflows/ci.yml/badge.svg)](https://github.com/angel291592/caddiff/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/angel291592/caddiff/blob/main/LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 
 </div>
 
-![caddiff 高亮出一个被移动的零件和一个被删除的特征](docs/images/hero.png)
+![caddiff 高亮出一个被移动的零件和一个被删除的特征](https://raw.githubusercontent.com/angel291592/caddiff/main/docs/images/hero.png)
 
 > 偏绿的品红色标出发生变化的几何；红框框出它的位置；蓝色箭头
-> 表示 5.00 mm 的位移。两张图都由 `caddiff` 基于 [`examples/`](examples/) 里的
+> 表示 5.00 mm 的位移。两张图都由 `caddiff` 基于 [`examples/`](https://github.com/angel291592/caddiff/tree/main/examples) 里的
 > 合成样例生成 —— 本仓库任何地方都没有客户数据。
 > **[免安装，在线浏览完整样例报告 →](https://angel291592.github.io/caddiff/report.html)**
 
@@ -77,7 +77,7 @@ $ git difftool -t caddiff HEAD~1 -- bracket.stp
 ```
 
 为什么 CAD 文件需要 `.gitattributes` 的专门处理、如何挑选要比对的版本，
-见 [`docs/git-integration.zh-CN.md`](docs/git-integration.zh-CN.md)。
+见 [`docs/git-integration.zh-CN.md`](https://github.com/angel291592/caddiff/blob/main/docs/git-integration.zh-CN.md)。
 
 ### 作为 GitHub Action（PR 闸门）
 
@@ -107,7 +107,7 @@ $ git difftool -t caddiff HEAD~1 -- bracket.stp
 
 已知限制：来自 fork 的 PR 用默认只读 token 无法在 PR 上评论，
 且报告以 artifact 而非 PR 评论的形式交付 ——
-见 [`action.yml`](action.yml) 顶部的说明。
+见 [`action.yml`](https://github.com/angel291592/caddiff/blob/main/action.yml) 顶部的说明。
 
 ---
 
@@ -212,7 +212,7 @@ $ echo $?
 
 | 输入 | 运行环境 | 检出差异 | 墙钟耗时 |
 |---|---|---|---|
-| 3 零件合成装配体（[`examples/`](examples/)） | 源码检出，Windows + FreeCAD 1.1.3 | 2 | **≈80 s** |
+| 3 零件合成装配体（[`examples/`](https://github.com/angel291592/caddiff/tree/main/examples)） | 源码检出，Windows + FreeCAD 1.1.3 | 2 | **≈80 s** |
 | 3 零件合成装配体，同一样例 | 官方镜像，Linux + FreeCAD 0.21.2 | 2 | **≈35 s** |
 | 55 零件生产装配体 | 源码检出，Windows + FreeCAD 1.1.3 | 3 | **290–366 s** |
 
@@ -276,9 +276,9 @@ new.stp ─┘        │
   840 s。只靠面数闸门抓不住这种事；只有可被强杀的子进程才抓得住。
 - **与 FreeCAD 打交道永远只走 subprocess + 文件。** 不编译扩展、不 `dlopen`、不共享内存。
   这让 LGPL/GPL 边界保持干净（见
-  [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)），也让崩溃被控制住。
+  [`THIRD_PARTY_LICENSES.md`](https://github.com/angel291592/caddiff/blob/main/THIRD_PARTY_LICENSES.md)），也让崩溃被控制住。
 
-技术细节深入讲解：[`docs/pipeline.zh-CN.md`](docs/pipeline.zh-CN.md)。
+技术细节深入讲解：[`docs/pipeline.zh-CN.md`](https://github.com/angel291592/caddiff/blob/main/docs/pipeline.zh-CN.md)。
 
 ---
 
@@ -298,23 +298,23 @@ new.stp ─┘        │
 ## 参与贡献
 
 欢迎提交 bug 报告、样例对和 pull request —— 见
-[`CONTRIBUTING.zh-CN.md`](CONTRIBUTING.zh-CN.md)。请**绝不要**往 issue 里附真实的客户模型：
+[`CONTRIBUTING.zh-CN.md`](https://github.com/angel291592/caddiff/blob/main/CONTRIBUTING.zh-CN.md)。请**绝不要**往 issue 里附真实的客户模型：
 CAD 文件里常常装着商业机密，衍生的 PNG/JSON/HTML 同样带着
 零件名。请改用最小的合成样例。
 
-安全漏洞报告：[`SECURITY.zh-CN.md`](SECURITY.zh-CN.md)。
+安全漏洞报告：[`SECURITY.zh-CN.md`](https://github.com/angel291592/caddiff/blob/main/SECURITY.zh-CN.md)。
 
 ---
 
 ## 许可证
 
-仓库源码为 **Apache-2.0**（[`LICENSE`](LICENSE)）。
+仓库源码为 **Apache-2.0**（[`LICENSE`](https://github.com/angel291592/caddiff/blob/main/LICENSE)）。
 
 Docker 镜像**以各自的许可证捆绑了第三方组件** —— FreeCAD
 （LGPL-2.1-or-later，且其发行版中还包含 GPL 许可的文件）、OpenCASCADE
 （LGPL-2.1，带 OCCT exception）、numpy、Pillow、python-pptx。这些*不*在
 本仓库 Apache-2.0 许可证的覆盖范围内。获取对应源码等完整说明见
-[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)。
+[`THIRD_PARTY_LICENSES.md`](https://github.com/angel291592/caddiff/blob/main/THIRD_PARTY_LICENSES.md)。
 
 本项目与 FreeCAD 项目或 FreeCAD Project Association 无隶属关系，也未获其认可。
 本项目使用 Open CASCADE Technology。
