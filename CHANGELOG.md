@@ -22,6 +22,15 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.3.3](https://github.com/angel291592/caddiff/compare/v0.3.2...v0.3.3) (2026-10-08)
+
+
+### Documentation
+
+* **readme:** stop the roadmap claiming v0.1 is 'this release' ([57c5a8b](https://github.com/angel291592/caddiff/commit/57c5a8b91e2f51bda7b0743f99ab021b1ff75879))
+* **release:** make README links resolve on PyPI, fill in the PyPI sidebar ([6a315ea](https://github.com/angel291592/caddiff/commit/6a315ead7526d6e2f0d079f7fb49e5a0623021ba))
+* **release:** pin the released image tag everywhere, add the social preview ([026a90c](https://github.com/angel291592/caddiff/commit/026a90c3a351b4380f45889d6975eb7baab0d878))
+
 ## [0.3.2](https://github.com/angel291592/caddiff/compare/v0.3.1...v0.3.2) (2026-10-05)
 
 
