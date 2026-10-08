@@ -284,9 +284,9 @@ new.stp ─┘        │
 
 ## 路线图
 
-- **v0.1**（本次发布）—— `caddiff diff`：BOM 对齐、几何 diff、渲染、
-  HTML/Markdown/JSON 报告、Docker 镜像、CI 退出码。
-- **v0.2** —— 一个 MCP 服务器，让刚编辑完模型的 agent 能拿上一版
+- **v0.1 – v0.3**（已发布）—— `caddiff diff`：BOM 对齐、几何 diff、渲染、
+  HTML/Markdown/JSON 报告、Docker 镜像、GitHub Action、CI 退出码。
+- **下一步** —— 一个 MCP 服务器，让刚编辑完模型的 agent 能拿上一版
   来核对它自己的改动。
 - **之后** —— `caddiff check`（FEA 合理性检查）与 `caddiff build`（沙箱化建模）。
   命名空间已保留；不作任何承诺。
