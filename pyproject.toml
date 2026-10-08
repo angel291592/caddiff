@@ -13,7 +13,11 @@ license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "The caddiff Authors" }]
 keywords = ["cad", "step", "stp", "diff", "freecad", "bom", "assembly", "git", "cli"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    # 4 - Beta, not 3 - Alpha: this has released images, a documented machine
+    # contract, an exit-code promise and green unit + e2e smoke in CI. Alpha
+    # would undersell that; 5 - Production/Stable would oversell a 0.x project
+    # whose pairing heuristic still has known false positives (see README).
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Manufacturing",
     # ⚠️ 这里**不能**再写 "License :: OSI Approved :: ..."：
