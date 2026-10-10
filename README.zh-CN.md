@@ -55,13 +55,19 @@ $ docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.3.3 \
 ### 本地安装
 
 `caddiff` 本身**零第三方依赖** —— 但几何与渲染两步跑在 FreeCAD 里，
-所以你需要 FreeCAD 自带的那个 Python 解释器：
+所以 `FREECAD_PYTHON` 必须指向一个能 `import FreeCAD` 的解释器：
 
 ```console
 $ pip install caddiff          # 想要 --pptx 就加上 [pptx]
-$ export FREECAD_PYTHON=/path/to/freecad/bin/freecad-python3   # Windows 上则是 python.exe
+$ export FREECAD_PYTHON=/path/to/FreeCAD/bin/python.exe   # Windows：FreeCAD 发行版自带 python
+$ export FREECAD_PYTHON=/usr/bin/python3                  # Linux：系统 python3，
+$ export PYTHONPATH=/usr/lib/freecad/lib                  #        外加 FreeCAD 模块所在目录
 $ caddiff diff old.stp new.stp -o report
 ```
+
+Linux 上**不要**把 `FREECAD_PYTHON` 指向 `.../freecad/bin/freecad-python3`：那个文件是
+FreeCAD 的 **GUI 应用**，把脚本交给它会启动界面并**永不返回**。上面这套「系统 `python3` +
+`PYTHONPATH`」才是能用的写法，Docker 镜像也是这么配的（见 [`docs/pipeline.md`](https://github.com/angel291592/caddiff/blob/main/docs/pipeline.md)）。
 
 如果 `FREECAD_PYTHON` 未设置，`caddiff` 会搜索常见的 Linux 位置和 `PATH`，
 找不到时会**带着可操作的提示失败**，而不是静默回退到一个

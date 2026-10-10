@@ -55,13 +55,21 @@ top of the tree — but for anything you gate a CI run on, pin a released tag (o
 ### Local install
 
 `caddiff` itself has **zero third-party dependencies** — but the geometry and rendering
-steps run inside FreeCAD, so you need FreeCAD's own Python interpreter:
+steps run inside FreeCAD, so `FREECAD_PYTHON` must point at an interpreter that can
+`import FreeCAD`:
 
 ```console
 $ pip install caddiff          # add [pptx] if you want --pptx
-$ export FREECAD_PYTHON=/path/to/freecad/bin/freecad-python3   # or python.exe on Windows
+$ export FREECAD_PYTHON=/path/to/FreeCAD/bin/python.exe   # Windows: the FreeCAD distribution ships its own python
+$ export FREECAD_PYTHON=/usr/bin/python3                  # Linux: the system python3,
+$ export PYTHONPATH=/usr/lib/freecad/lib                  #         with FreeCAD's modules on the path
 $ caddiff diff old.stp new.stp -o report
 ```
+
+On Linux, do **not** point `FREECAD_PYTHON` at `.../freecad/bin/freecad-python3`: that file
+is the FreeCAD **GUI application**, so handing it a script opens the GUI and never returns.
+The system `python3` + `PYTHONPATH` above is what works, and it is how the Docker image is
+configured (see [`docs/pipeline.md`](https://github.com/angel291592/caddiff/blob/main/docs/pipeline.md)).
 
 If `FREECAD_PYTHON` is unset, `caddiff` searches the usual Linux locations and `PATH`, and
 **fails with an actionable message** rather than silently falling back to a Python that

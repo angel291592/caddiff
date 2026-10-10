@@ -38,7 +38,8 @@ $ python -c "import json;print(json.load(open('out/diff_manifest.json'))['summar
 渲染是最耗时的部分(3 零件装配体上约 75 s,无 GPU),因此这些文件以提交入库的方式保存,而不是每次运行都在 CI 中生成。
 
 ```console
-$ export FREECAD_PYTHON=/path/to/freecad/bin/freecad-python3
+$ export FREECAD_PYTHON=/path/to/FreeCAD/bin/python.exe   # Windows：FreeCAD 发行版自带 python
+$ # Linux 则改用： export FREECAD_PYTHON=/usr/bin/python3 PYTHONPATH=/usr/lib/freecad/lib  （见 ../docs/pipeline.md）
 $ python caddiff/make_moved_fixture.py examples/fixtures
 $ caddiff diff examples/fixtures/moved_old.stp examples/fixtures/moved_new.stp -o out
 ```

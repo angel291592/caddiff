@@ -40,7 +40,8 @@ Rendering is the slow part (≈75 s on a 3-part assembly, no GPU), so these file
 committed rather than generated in CI on every run.
 
 ```console
-$ export FREECAD_PYTHON=/path/to/freecad/bin/freecad-python3
+$ export FREECAD_PYTHON=/path/to/FreeCAD/bin/python.exe   # Windows: the FreeCAD distribution ships its own python
+$ # Linux instead: export FREECAD_PYTHON=/usr/bin/python3 PYTHONPATH=/usr/lib/freecad/lib   (see ../docs/pipeline.md)
 $ python caddiff/make_moved_fixture.py examples/fixtures
 $ caddiff diff examples/fixtures/moved_old.stp examples/fixtures/moved_new.stp -o out
 ```
