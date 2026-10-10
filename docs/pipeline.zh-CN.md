@@ -63,7 +63,7 @@ OLD.stp, NEW.stp
 
 **布尔运算必须在子进程里跑（不可回退成直接调用）**：FreeCAD 的布尔是 C++ 阻塞调用，Windows 上 `signal.alarm` 不可用、线程也中断不了它。实测 `PART-B` **仅 912 面**却单次 `cut` 跑过 **840s 未返回**——面数与布尔耗时不成正比，任何面数闸门都拦不住它。`boolean_worker.py` 通过 `exportBrep`/`importBrep` 只传单个零件几何（正常零件端到端仅 0.6s 开销，不需要在子进程里重新导入 STP），父进程超时即 `kill`，零件记入 `skipped_parts`。**子进程里必须先 `import FreeCAD` 再 `import Part`**，直接 import Part 会以 0xC0000005 访问违例崩溃（实测 `rc=3221225477`）。
 
-**环境约束（必须遵守）**：`geom_diff.py` 和 `render_diff.py` 必须用**能 `import FreeCAD` 的解释器**运行——`caddiff/fcenv.py` 是解释器路径解析的**唯一真相源**（`FREECAD_PYTHON` → `FREECAD_HOME` → Linux 常见安装路径 → `PATH`，找不到就抛错并给修复指引，**不静默回退到当前解释器**）。`bom_diff.py` 和 `build_pptx.py` 是纯逻辑，用系统 Python。
+**环境约束（必须遵守）**：`geom_diff.py` 和 `render_diff.py` 必须用**能 `import FreeCAD` 的解释器**运行——`caddiff/fcenv.py` 是解释器路径解析的**唯一真相源**（`FREECAD_PYTHON` → `FREECAD_HOME` → Linux 常见安装路径 → `PATH`，找不到就抛错并给修复指引，**不静默回退到当前解释器**）。解析过程**用「试跑一次」而不是「看它存不存在」来落实这条判据**：显式的 `FREECAD_PYTHON` 必须能执行脚本文件，自动发现的候选还额外要求 `import FreeCAD` 真的成功——这正是 `freecad-python3` 永远选不中的原因（它存在、可执行、`-c` 也能过，只过不了「执行脚本文件」）。`bom_diff.py` 和 `build_pptx.py` 是纯逻辑，用系统 Python。
 
 判据是「**那个解释器能跑 `script.py args`**」，不是「它叫什么名字」——两者会分叉，实测踩过：
 
