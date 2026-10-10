@@ -22,6 +22,19 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.3.4](https://github.com/angel291592/caddiff/compare/v0.3.3...v0.3.4) (2026-10-10)
+
+
+### Bug Fixes
+
+* **fcenv:** probe interpreter candidates by execution, not by existence ([5d3c5d2](https://github.com/angel291592/caddiff/commit/5d3c5d20af6793b61a1dee15e2a91e89e1bfffe3))
+
+
+### Documentation
+
+* **readme:** stop pointing FREECAD_PYTHON at the FreeCAD GUI app ([e78a2ea](https://github.com/angel291592/caddiff/commit/e78a2ea781baeba95ffd61c9f0afa6acdb790e1c))
+* **release:** bump the pinned image/action tags to v0.3.3 ([bb22d0e](https://github.com/angel291592/caddiff/commit/bb22d0e9e99bef20b35c822e9565281cc16af2f7))
+
 ## [0.3.3](https://github.com/angel291592/caddiff/compare/v0.3.2...v0.3.3) (2026-10-08)
 
 
