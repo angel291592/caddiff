@@ -26,6 +26,7 @@ import argparse
 import os
 import sys
 import tempfile
+import traceback
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
@@ -148,9 +149,19 @@ def cmd_difftool(args):
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
-    if args.command == "difftool":
-        return cmd_difftool(args)
-    return cmd_diff(args)
+    try:
+        if args.command == "difftool":
+            return cmd_difftool(args)
+        return cmd_diff(args)
+    except Exception:
+        # 漏网的内部异常也必须以 2 退出：解释器对未捕获异常的默认退出码是 **1**，而
+        # 1 = 「检出差异」——正好与上面 docstring 里「内部错误 → 2」的承诺相反。
+        # 实测：子进程启动失败抛 PermissionError 时，CLI 曾以 1 退出（见 run_step 的
+        # OSError 分支）。traceback 照打，排查信息一点不少，只是退出码要正确。
+        traceback.print_exc()
+        print("\nERROR: unexpected internal failure (see traceback above)",
+              file=sys.stderr)
+        return EXIT_ERROR
 
 
 if __name__ == "__main__":

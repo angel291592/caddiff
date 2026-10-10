@@ -87,6 +87,15 @@ def run_step(name, cmd, timeout=600, artifacts=None):
         print(f"  NOT FOUND: {cmd[0]}")
         _print_artifacts(artifacts)
         raise PipelineError(f"interpreter or script not found: {cmd[0]}") from exc
+    except OSError as exc:
+        # FileNotFoundError 之外还有一批「根本启动不了」的形态：Windows 上不可执行的文件
+        # 是 OSError(WinError 193) / PermissionError(5)，Linux 上是 PermissionError /
+        # Exec format error。它们若冒泡出 main()，进程会以未捕获异常结束 → **退出码 1**，
+        # 也就是「检出差异」——直接违反 AGENTS.md §3.1（内部失败必须传导到 2）。
+        # 实测复现：cmd[0] 指向一个不可执行的路径时，真实 CLI 进程退出码为 1。
+        print(f"  CANNOT START: {cmd[0]} ({type(exc).__name__})")
+        _print_artifacts(artifacts)
+        raise PipelineError(f"cannot start '{cmd[0]}': {exc}") from exc
     elapsed = time.time() - t0
     if result.returncode != 0:
         print(f"  FAILED (exit={result.returncode}, {elapsed:.0f}s)")

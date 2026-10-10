@@ -139,3 +139,31 @@ def test_render_timeout_is_recorded_in_settings(tmp_path):
     # 覆盖值优先于估算值，且两者只算一次（同一个变量喂给 run_step 与 manifest）
     assert "effective_render_timeout" in src
     assert src.count("effective_render_timeout") >= 2
+
+
+def test_a_step_that_cannot_start_is_a_pipeline_error(tmp_path):
+    """子进程「启动不了」必须走 PipelineError（→ 退出码 2），不能以 OSError 冒泡。
+
+    实测复现（2026-10-10）：`cmd[0]` 指向一个不可执行的路径时，Windows 抛的是
+    PermissionError / OSError(WinError 193)，Linux 抛 PermissionError。原先只有
+    FileNotFoundError 被翻译，于是它冒泡出 `cmd_diff` 的 `except PipelineError`，
+    真实 CLI 进程以 **退出码 1 = 「检出差异」** 结束。闸门方向仍安全（拦住构建而非放行），
+    但对外承诺错了一档——AGENTS.md §3.1 要求内部失败一律传导到 2。
+    """
+    with pytest.raises(run_pipeline.PipelineError) as exc:
+        run_pipeline.run_step("probe", [str(tmp_path), "x.py"], timeout=5)
+    assert "cannot start" in str(exc.value)
+
+
+def test_an_unexpected_internal_error_still_exits_2(monkeypatch, capsys):
+    """入口要兜住任何漏网的异常：解释器对未捕获异常的默认退出码是 1（= 检出差异）。"""
+    import cli
+
+    def boom(_args, _out):
+        raise RuntimeError("simulated internal failure")
+
+    monkeypatch.setattr(cli, "_run_diff_args", boom)
+
+    assert cli.main(["diff", "a.stp", "b.stp", "-o", "out"]) == cli.EXIT_ERROR == 2
+    # 退出码纠正的同时不能把排查信息丢掉
+    assert "simulated internal failure" in capsys.readouterr().err
