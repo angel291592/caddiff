@@ -32,8 +32,8 @@ coordinates and tells you nothing. Worse, git will happily **merge** two STEP fi
 file that is syntactically valid and geometrically wrong — and nothing warns you.
 
 Commercial CAD suites sell a fix for this (SOLIDWORKS Compare, TransMagic, 3DViewStation).
-The open-source side had almost nothing: the most-starred project in this space sits at
-**75 stars** and only renders a visual diff — no BOM alignment, no report, no CI story.
+The open-source side had almost nothing: the few projects in this space render a visual
+diff and stop there — no BOM alignment, no report, no CI story.
 
 `caddiff` is the missing piece: a command-line tool that answers *what changed* with a
 picture and a machine-readable list.
@@ -208,9 +208,9 @@ If you generate models with a text-to-CAD tool, `caddiff` is what you run **afte
 cost a licence per seat, need the CAD application installed, and cannot run in CI. That is
 the entire reason this project exists — see [The problem](#the-problem).
 
-> On the open-source side, a handful of projects in this space render a visual diff. The
-> most-starred of them sits at **75 stars**, and none of them ship BOM-level alignment, a
-> machine-readable manifest, or CI exit codes. That is the gap `caddiff` fills.
+> On the open-source side, a handful of projects in this space render a visual diff, and
+> none of them ship BOM-level alignment, a machine-readable manifest, or CI exit codes.
+> That is the gap `caddiff` fills.
 
 ---
 
