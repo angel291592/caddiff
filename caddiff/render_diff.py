@@ -77,6 +77,10 @@ RECT_LABEL_GAP_RATIO = 0.022 # 标签与框边的间距占图宽比例（引出�
 CIRCLED_DIGITS = "①②③④⑤⑥⑦⑧"
 HIGHLIGHT_COLOR = (1.0, 0.0, 1.0)  # 品红色（差异几何体本身，0~1浮点，FreeCAD ShapeColor格式）
 TARGET_TRANSPARENCY = 40  # 目标零件本身设为半透明，避免遮住藏在内部/边缘的差异高亮体
+# 特写图重试后仍为全白时的子进程退出码。父步骤把任何非零都翻成 CLI 的退出码 2；
+# 这里特意避开 2——否则 run_step 会额外打印「upstream produced no manifest」，
+# 而本场景恰恰是产出了 manifest 之后才失败的。
+EXIT_BLANK_PANEL = 3
 
 # 整体定位图里【非目标零件】的透明度。整体图的职责是"暴露差异点在装配体中的位置"，
 # 若周围零件不透明，差异高亮体会被兄弟零件挡死。实测26方向×4档透明度（原生视口像素）：
@@ -261,6 +265,19 @@ def check_image_nonblank(img_path):
     extrema = img.getextrema()
     # 三通道都是(255,255)说明全白
     return not all(lo == 255 and hi == 255 for lo, hi in extrema)
+
+
+def note_render_defect(rec, panel, why):
+    """记录「这一帧没画出东西」，由 Stage 3 决定重试还是失败。
+
+    why 不在检测处直接失败：离屏 GUI 偶发会截到空图（实测同一命令有时正常、有时四张
+    特写全白），重试一次通常就好。
+    why 不再只打印警告：历史上这里只 print 就继续往下走，坏图照样落盘、照样通过全部
+    下游断言（它们只看文件存不存在），用户拿到的是「红框框着一片空白」的报告——
+    正是 AGENTS.md §3.4 禁止的静默失败。检测器早就在代码里，缺的只是让它起作用。
+    """
+    print(f"    !! {panel}: {why}")
+    rec.setdefault("render_defects", []).append(panel)
 
 
 def count_magenta(img_path):
@@ -1309,8 +1326,9 @@ def render_one(md, av, doc, output_dir, bn, idx, change, bbox,
     closeup_axes = axis_screen_dirs(av)
     closeup_dir_vec = tuple(av.getViewDirection())
     if not check_image_nonblank(closeup_new_path):
-        print(f"    !! WARNING: new-version close-up is all white; "
-              f"check the parent_chain/visibility logic for {bn}")
+        note_render_defect(rec, os.path.basename(closeup_new_path),
+                           "new-version close-up is all white; check the "
+                           "parent_chain/visibility logic")
     closeup_new_rect = os.path.join(output_dir, f"{bn}_{idx}_closeup_new_rect.png")
     cu_rects, _ = draw_rects_on_image(closeup_new_path, cu_items, closeup_new_rect)
     rec["closeup_new"] = os.path.basename(closeup_new_path)
@@ -1342,6 +1360,10 @@ def render_one(md, av, doc, output_dir, bn, idx, change, bbox,
     # 必须用与新版特写图相同的尺寸截图：两图共用同一相机与同一份投影坐标，
     # 尺寸不同则画面缩放比例不同，红框会对不上，也破坏并排对比的像素级对齐。
     save_native_and_upscale(av, closeup_old_path, closeup_size)
+    if not check_image_nonblank(closeup_old_path):
+        note_render_defect(rec, os.path.basename(closeup_old_path),
+                           "old-version close-up is all white; check the "
+                           "parent_chain/visibility logic")
     closeup_old_rect = os.path.join(output_dir, f"{bn}_{idx}_closeup_old_rect.png")
     # 用与新版特写图完全相同的框（同相机 → 坐标必然一致，逐簇结果也一致）。
     # 【不要在这里重新投影】(b) 与 (c) 之间不得有任何相机操作，复用是像素级对齐的保证（坑 C2）。
@@ -1596,8 +1618,9 @@ def render_moved_one(md, av, doc, output_dir, bn, idx, change, bbox,
     closeup_axes = axis_screen_dirs(av)
     closeup_dir_vec = tuple(av.getViewDirection())
     if not check_image_nonblank(new_path):
-        print(f"    !! WARNING: new-position image is all white; "
-              f"check the parent_chain/visibility logic for {bn}")
+        note_render_defect(rec, os.path.basename(new_path),
+                           "new-position image is all white; check the "
+                           "parent_chain/visibility logic")
 
     new_rect = os.path.join(output_dir, f"{bn}_{idx}_closeup_new_rect.png")
     cu_rects, _ = draw_rects_on_image(new_path, [(bbox_2d_closeup, [])], new_rect)
@@ -1623,6 +1646,10 @@ def render_moved_one(md, av, doc, output_dir, bn, idx, change, bbox,
 
     old_path = os.path.join(output_dir, f"{bn}_{idx}_closeup_old.png")
     save_native_and_upscale(av, old_path, cu_size)
+    if not check_image_nonblank(old_path):
+        note_render_defect(rec, os.path.basename(old_path),
+                           "old-position image is all white; check the "
+                           "parent_chain/visibility logic")
     old_rect = os.path.join(output_dir, f"{bn}_{idx}_closeup_old_rect.png")
     # 用【旧位置】的 bbox 投影画框——它与新位置图共用同一相机，投影早在上面同一批完成，
     # 这里不重新投影也不动相机（坑 C2）。若沿用新位置的 bbox，红框会画在品红零件【旁边】
@@ -1780,16 +1807,45 @@ def run(geom_json_path, stp_old, stp_new, output_dir,
 
             # 按 change_type 分流：moved 没有对称差几何体，硬套 render_one 会一路静默降级
             # （0 品红 → cluster_count=0 → 红框退化成不存在的并集 bbox），必须走独立分支。
-            if ctype == "moved":
-                rec = render_moved_one(md, av, doc, output_dir, bn, d_idx, change,
-                                       bbox, new_obj, feats, injected_names, pre,
-                                       self_names_map.get(key, set()),
-                                       label_old=lbl_old, label_new=lbl_new)
-            else:
-                rec = render_one(md, av, doc, output_dir, bn, d_idx, change, bbox,
-                                 new_obj, feats, injected_names, pre,
-                                 self_names_map.get(key, set()),
-                                 label_old=lbl_old, label_new=lbl_new)
+            #
+            # 渲染函数把「这一帧全白」记进 rec["render_defects"]（见 note_render_defect）。
+            # 离屏 GUI 偶发会截到空图，所以先重试一次；重试后仍为空就明确失败——绝不落盘
+            # 一张「红框框着空白」的图去冒充差异证据（AGENTS.md §3.4 不做静默失败）。
+            defects = []
+            for attempt in (1, 2):
+                if ctype == "moved":
+                    rec = render_moved_one(md, av, doc, output_dir, bn, d_idx, change,
+                                           bbox, new_obj, feats, injected_names, pre,
+                                           self_names_map.get(key, set()),
+                                           label_old=lbl_old, label_new=lbl_new)
+                else:
+                    rec = render_one(md, av, doc, output_dir, bn, d_idx, change, bbox,
+                                     new_obj, feats, injected_names, pre,
+                                     self_names_map.get(key, set()),
+                                     label_old=lbl_old, label_new=lbl_new)
+                defects = rec.get("render_defects") or []
+                if not defects:
+                    break
+                print(f"    !! {bn}: {len(defects)} panel(s) came out empty: "
+                      f"{', '.join(defects)}")
+                if attempt == 1:
+                    print("    retrying this change's render once "
+                          "(offscreen renders can come out blank under load)...")
+                    time.sleep(2)
+
+            if defects:
+                rec["render_failed"] = defects
+                manifest.append(rec)
+                write_manifest(output_dir, manifest)
+                print(f"\nERROR: {bn} still produced {len(defects)} empty image(s) after "
+                      f"a retry: {', '.join(defects)}")
+                print("Those panels are how the report shows 'the changed region'. A blank "
+                      "one would claim a difference it cannot display, so this run fails "
+                      "instead of publishing it (the CLI turns this into exit code 2).")
+                sys.exit(EXIT_BLANK_PANEL)
+            if attempt == 2:
+                rec["render_retried"] = True
+                print("    retry succeeded — recorded render_retried=true in the manifest")
 
             manifest.append(rec)
             # 每处差异渲染完就落盘：渲染是最贵的一步，超时/崩溃后已完成的部分不该丢。

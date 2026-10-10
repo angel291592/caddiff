@@ -154,6 +154,11 @@ jobs:
             exit 1
           fi
 
+      # The image-content gate inside the next step has to decode PNGs; the stdlib
+      # cannot, and this job otherwise needs nothing beyond the pulled image.
+      - name: Install Pillow for the image-content gate
+        run: python3 -m pip install --quiet --disable-pip-version-check pillow
+
       # Asserts the product contract, not just "the command ran": the artifacts
       # exist, the manifest says there are differences, and the manifest agrees
       # with the exit code (AGENTS.md §3 — 1 must never mean "crashed").
@@ -179,6 +184,41 @@ jobs:
           ) if os.path.isdir(images_dir) else []
           if not pngs:
               problems.append(f"no PNG in {images_dir}/")
+
+          # Content, not just existence. The render step screenshots an offscreen GUI,
+          # and it has been observed to capture an empty frame: the report then shows a
+          # red box around nothing. Every assertion above still passes on that report,
+          # so this is the gate that actually catches it. (The render path now aborts
+          # on the same signal; this checks the *product*, so it also covers a render
+          # path that regressed to ignoring that check.)
+          closeups = [f for f in pngs if "closeup" in f and "_rect" in f]
+          if not closeups:
+              problems.append(f"no annotated close-up PNG in {images_dir}/")
+          else:
+              from PIL import Image
+              for name in closeups:
+                  with Image.open(os.path.join(images_dir, name)) as im:
+                      rgb = im.convert("RGB")
+                      w, h = rgb.size
+                      px = rgb.load()
+                      # Non-near-white fraction. The direction banner alone is ~3-4%
+                      # of the frame; a close-up that really shows geometry measured
+                      # 20-43%, so 10% separates the two with margin on both sides.
+                      step = max(1, min(w, h) // 400)
+                      total = ink = 0
+                      for y in range(0, h, step):
+                          for x in range(0, w, step):
+                              total += 1
+                              r, g, b = px[x, y]
+                              if r + g + b < 700:
+                                  ink += 1
+                      pct = 100.0 * ink / total if total else 0.0
+                  print(f"close-up   : {name} non-white={pct:.1f}%")
+                  if pct < 10.0:
+                      problems.append(
+                          f"{name} is only {pct:.1f}% non-white — the close-up shows no "
+                          "geometry (a blank frame renders as 'a red box around nothing')"
+                      )
 
           manifest_path = os.path.join(out, "diff_manifest.json")
           summary = {}
