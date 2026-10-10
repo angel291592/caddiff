@@ -199,3 +199,40 @@ def test_measured_rotation_gets_no_low_confidence_label(tmp_path):
         text = open(p, encoding="utf-8").read()
         assert "90" in text
         assert note not in text, f"不该出现低置信度说明：{os.path.basename(p)}"
+
+
+def _clear_labels(mp):
+    """清空 manifest 的版本标签，模拟不带 `--label-old/--label-new` 的调用。"""
+    manifest = json.loads(mp.read_text(encoding="utf-8"))
+    manifest["label_old"] = ""
+    manifest["label_new"] = ""
+    mp.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+
+def test_unlabelled_manifest_falls_back_to_the_shared_labels(tmp_path):
+    """没有版本标签时标题必须回退到双语文案，不得出现字面量 `?`。
+
+    README 快速上手给的就是不带标签的调用（`caddiff diff old.stp new.stp`），所以这条
+    路径才是绝大多数用户真正看到的：manifest 里 label_old/label_new 是空串。同一个字段
+    在 PPT 导出里回退到 `label.old`/`label.new`、在配图里回退到文件名，报告此前却落到
+    字面量 `?`，线上表现是标题渲染成 "Geometry diff report — ? → ?"。
+    """
+    out, mp = _build_out(tmp_path)
+    _clear_labels(mp)
+    html_path, md_path = report.generate(str(mp), lang="en")
+
+    title = i18n.t("report.title", old=i18n.t("label.old"), new=i18n.t("label.new"))
+    assert "?" not in title, "回退文案本身不得含问号，否则这条断言自我满足"
+    for p in (html_path, md_path):
+        text = open(p, encoding="utf-8").read()
+        assert title in text, f"标题必须回退到 {title!r}：{os.path.basename(p)}"
+        assert "? → ?" not in text, f"标题不得出现占位符问号：{os.path.basename(p)}"
+
+    # i18n 铁律：中文侧同样要有回退，且回退到的是中文文案
+    out_zh, mp_zh = _build_out(tmp_path / "zh")
+    _clear_labels(mp_zh)
+    html_zh, _ = report.generate(str(mp_zh), lang="zh")
+    title_zh = i18n.t("report.title", old=i18n.t("label.old"), new=i18n.t("label.new"))
+    assert _CJK.search(title_zh), "zh 回退文案必须是中文"
+    assert title_zh in open(html_zh, encoding="utf-8").read()
+    i18n.set_lang("en")  # 复位，避免污染其它测试

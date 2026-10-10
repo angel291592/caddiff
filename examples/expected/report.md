@@ -1,4 +1,4 @@
-# Geometry diff report — ? → ?
+# Geometry diff report — Old → New
 
 2 geometric change(s), 0 BOM-level change(s)
 

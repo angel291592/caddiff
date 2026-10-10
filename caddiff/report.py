@@ -180,7 +180,11 @@ def _reason_key(reason):
 def render_markdown(manifest, entries, t):
     s = manifest.get("summary") or {}
     out = []
-    out.append(f"# {t('report.title', old=manifest.get('label_old') or '?', new=manifest.get('label_new') or '?')}")
+    # 无版本标签时回退到 i18n 的 Old/New——与 build_pptx 同一条约定。这个位置承载的是
+    # 「版本」；渲染不出来的占位符会让整份报告看起来是坏的。
+    old = manifest.get("label_old") or t("label.old")
+    new = manifest.get("label_new") or t("label.new")
+    out.append(f"# {t('report.title', old=old, new=new)}")
     out.append("")
     if not s.get("has_differences"):
         out.append(f"**{t('report.none')}**")
@@ -289,8 +293,9 @@ footer { margin-top:3rem; color:var(--muted); font-size:.85rem; border-top:1px s
 def render_html(manifest, entries, t):
     s = manifest.get("summary") or {}
     has = bool(s.get("has_differences"))
-    old = _esc(manifest.get("label_old") or "?")
-    new = _esc(manifest.get("label_new") or "?")
+    # 回退规则同 render_markdown；HTML 侧的文件名由下一行的副标题另行给出。
+    old = _esc(manifest.get("label_old") or t("label.old"))
+    new = _esc(manifest.get("label_new") or t("label.new"))
     p = []
     p.append("<!doctype html>")
     p.append('<html lang="%s">' % _esc(i18n.get_lang()))
