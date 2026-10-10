@@ -27,7 +27,7 @@
 # fail, and only exit code 2 (execution failure) fails the action.
 #
 # USAGE
-#   - uses: angel291592/caddiff@v0.3.3
+#   - uses: angel291592/caddiff@v0.3.4
 #     id: caddiff
 #     with:
 #       old: models/base.stp
@@ -62,7 +62,7 @@ inputs:
     # gate, and a floating tag silently changes the geometry engine underneath the
     # caller. `edge` stays available for anyone who wants it — as an explicit input.
     # Keep this in lockstep with the version in README.md.
-    default: 'ghcr.io/angel291592/caddiff:v0.3.3'
+    default: 'ghcr.io/angel291592/caddiff:v0.3.4'
   args:
     description: 'Extra arguments appended to `caddiff diff` (e.g. "--min-diff-pct 0.1 --skip-parts PART-B").'
     required: false

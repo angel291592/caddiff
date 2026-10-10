@@ -45,11 +45,11 @@ picture and a machine-readable list.
 ### Docker (recommended — nothing to install)
 
 ```console
-$ docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.3.3 \
+$ docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.3.4 \
     diff /data/old.stp /data/new.stp -o /data/report
 ```
 
-`v0.3.3` is the released image. An `edge` tag also tracks `main` if you want to live on
+`v0.3.4` is the released image. An `edge` tag also tracks `main` if you want to live on
 top of the tree — but for anything you gate a CI run on, pin a released tag (or a digest).
 
 ### Local install
@@ -93,12 +93,12 @@ The repo ships a ready-made Action that pulls the same prebuilt image, runs the 
 two files in your repo, and uploads the report directory as a workflow artifact:
 
 ```yaml
-- uses: angel291592/caddiff@v0.3.3
+- uses: angel291592/caddiff@v0.3.4
   id: caddiff
   with:
     old: models/base.stp
     new: models/pr.stp
-    image: ghcr.io/angel291592/caddiff:v0.3.3
+    image: ghcr.io/angel291592/caddiff:v0.3.4
 
 - name: React to differences
   if: steps.caddiff.outputs.has-differences == 'true'
@@ -109,7 +109,7 @@ Outputs read from `diff_manifest.json` (`has-differences`, `diff-count`, `report
 action fails only on exit code 2 (caddiff could not run); exit code 1 (differences
 found) is a result, and the report is still uploaded.
 
-`image:` is spelled out on purpose. `@v0.3.3` resolves `action.yml` from the `v0.3.3`
+`image:` is spelled out on purpose. `@v0.3.4` resolves `action.yml` from the `v0.3.4`
 tag, and that tag's default is frozen at the *previous* release — so without this line
 the action and the geometry engine would run different versions. Same rule as the
 `docker run` above: pin the image, not the branch.
@@ -166,7 +166,7 @@ is buried inside the assembly it says so on the image instead of pretending the 
 ```yaml
 - name: Check geometry changes
   run: |
-    docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.3.3 \
+    docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.3.4 \
       diff /data/base.stp /data/pr.stp -o /data/report
 ```
 
