@@ -22,6 +22,21 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.3.5](https://github.com/angel291592/caddiff/compare/v0.3.4...v0.3.5) (2026-10-10)
+
+
+### Bug Fixes
+
+* **exit-codes:** map a step that cannot start to exit 2, not 1 ([454b65f](https://github.com/angel291592/caddiff/commit/454b65f22a120b92363e279e77b04842a7673294))
+* **render:** fail on an empty close-up instead of publishing a blank panel ([a243ff2](https://github.com/angel291592/caddiff/commit/a243ff2cb1c1ed42d3cd22c7d83b7f80db3cfaf3))
+* **report:** fall back to the shared labels instead of a literal "?" ([374fb14](https://github.com/angel291592/caddiff/commit/374fb14510a0f78649dcf58dca676e192507b4b5))
+
+
+### Documentation
+
+* **readme:** drop the stale competitor star count ([fbdb986](https://github.com/angel291592/caddiff/commit/fbdb9865a01034f62169fa3e6f96ebf25683dd73))
+* **release:** bump the pinned image/action tags to v0.3.4 ([8ce05aa](https://github.com/angel291592/caddiff/commit/8ce05aad3c1ef2fe7c48beda533138f3d606b86c))
+
 ## [0.3.4](https://github.com/angel291592/caddiff/compare/v0.3.3...v0.3.4) (2026-10-10)
 
 
