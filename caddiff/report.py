@@ -24,6 +24,7 @@ import json
 import os
 import sys
 import time
+import urllib.parse
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
@@ -80,6 +81,24 @@ def _image_rel(image_dir, filename):
     if not os.path.isabs(image_dir):
         return f"images/{filename}"
     return filename  # 调用方给的是绝对路径时不改写，交给渲染层处理
+
+
+def _image_url(filename):
+    """图片文件名 → 可写进 Markdown 链接 / HTML ``src`` 的 URL 片段。
+
+    why 必须编码：图片文件名是「零件名 + 序号 + panel」拼出来的，而**零件名里带空格
+    是常态**（实测公开语料 24 对装配体里 186 张图的名字含空格、36 张含括号），空格在
+    CommonMark 的链接目的地里是**终止符**——不编码时 GitHub 会把整行退化成纯文本，读者
+    看到的是一行 ``![...](images/Symmetry of ...png)`` 原始标记，**报告里的图直接消失**
+    且没有任何报错。括号只在成对时才勉强合法，不成对同样断链，所以一并编码。
+
+    被否决的方案：改用尖括号目的地 ``![alt](<images/a b.png>)``。它能绕开空格，但那是
+    CommonMark 的扩展写法，换一个 Markdown 消费者（编辑器预览、别的 CI 渲染器）就未必
+    认；百分号编码是 URL 的标准表示，两边都认，且 HTML 的 ``src`` 需要的正是同一份编码。
+    ``safe=""`` 顺带挡掉 ``#``/``%`` 这类在 URL 里有语法含义的字符——它们是同一个根因的
+    另几种触发条件，不是另一件事。
+    """
+    return urllib.parse.quote(filename, safe="")
 
 
 def _change_title(entry, t):
@@ -221,7 +240,8 @@ def render_markdown(manifest, entries, t):
             for panel in PANELS:
                 fn = entry.get(panel)
                 if fn:
-                    out.append(f"![{_change_title(entry, t)} — {t('report.panel.' + panel)}](images/{fn})")
+                    out.append(f"![{_change_title(entry, t)} — {t('report.panel.' + panel)}]"
+                               f"(images/{_image_url(fn)})")
                     out.append("")
 
     honesty = _honesty_items(s, t)
@@ -347,7 +367,7 @@ def render_html(manifest, entries, t):
                 for panel, fn in shots:
                     p.append('<figure><img loading="lazy" src="images/%s" alt="%s">'
                              '<figcaption>%s</figcaption></figure>'
-                             % (_esc(fn), _esc(_change_title(entry, t)),
+                             % (_image_url(fn), _esc(_change_title(entry, t)),
                                 _esc(t("report.panel." + panel))))
                 p.append("</div>")
 

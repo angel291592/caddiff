@@ -6,6 +6,7 @@
 import json
 import os
 import re
+import urllib.parse
 
 import i18n
 import report
@@ -91,6 +92,59 @@ def test_report_contains_the_changed_part_and_its_images(tmp_path):
         assert "BRACKET" in text
         assert "BRACKET_0_overview_rect.png" in text
         assert "BRACKET_0_closeup_new_rect.png" in text
+
+
+def _build_out_with_awkward_names(tmp_path):
+    """把示例产物改成公开语料里的真实形态：零件名带空格与括号。
+
+    实测 24 对公开装配体：**186 张图的名字含空格、36 张含括号**——零件名会原样进到图片
+    文件名里，所以这不是边角情况，而是常态。
+    """
+    out, mp = _build_out(tmp_path)
+    images = out / "images"
+    rm_path = images / "render_manifest.json"
+    entries = json.loads(rm_path.read_text(encoding="utf-8"))
+    for entry in entries:
+        entry["base_name"] = "Symmetry of W11 (left)"
+        for panel in ("overview_rect", "closeup_new_rect"):
+            fn = entry.get(panel)
+            if not fn:
+                continue
+            new_fn = fn.replace("BRACKET", "Symmetry of W11 (left)")
+            (images / fn).rename(images / new_fn)
+            entry[panel] = new_fn
+    rm_path.write_text(json.dumps(entries), encoding="utf-8")
+    return out, mp
+
+
+def test_image_links_survive_spaces_and_parens_in_part_names(tmp_path):
+    """零件名带空格/括号时，报告里的图必须仍然指得到磁盘上那张图。
+
+    why：图片文件名 = 零件名 + 序号 + panel，而空格在 CommonMark 的链接目的地里是**终止符**
+    ——不编码时 GitHub 把整行当纯文本渲染（实测 `![a](images/Symmetry of x.png)` 的输出是
+    `<p>![a](images/Symmetry of x.png)</p>`，没有任何 `<img>`），读者看到的是原始标记、图直接
+    消失且不报错。括号只在成对时才勉强合法，不成对同样断链。
+    """
+    out, mp = _build_out_with_awkward_names(tmp_path)
+    html_path, md_path = report.generate(str(mp), lang="en")
+    md_text = open(md_path, encoding="utf-8").read()
+    html_text = open(html_path, encoding="utf-8").read()
+
+    # 用「在第一个 ) 处截断」的方式取目的地——这正是 Markdown 解析器的取法。
+    md_dests = re.findall(r"\]\((images/[^)]+)\)", md_text)
+    html_dests = re.findall(r'src="(images/[^"]+)"', html_text)
+    assert len(md_dests) == 2, md_dests
+    assert len(html_dests) == 2, html_dests
+
+    for dest in md_dests + html_dests:
+        # ① 目的地里不得有空白：有空白就说明解析器会提前截断，图必然指不到
+        assert not re.search(r"\s", dest), f"目的地含空白字符：{dest}"
+        # ② 解码后必须指回真实存在的那张图（相对 report.md 所在的 <out>/）
+        resolved = os.path.normpath(os.path.join(str(out), urllib.parse.unquote(dest)))
+        assert os.path.isfile(resolved), f"链接指不到真实文件：{dest} -> {resolved}"
+
+    # 链接里的**可见文字**（零件名）不得被编码弄花——修的是 URL，不是零件名
+    assert "Symmetry of W11 (left)" in md_text
 
 
 def test_report_surfaces_honesty_sections(tmp_path):
