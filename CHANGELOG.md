@@ -22,6 +22,18 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.3.7](https://github.com/angel291592/caddiff/compare/v0.3.6...v0.3.7) (2026-10-16)
+
+
+### Bug Fixes
+
+* **report:** percent-encode image filenames in report links ([929f616](https://github.com/angel291592/caddiff/commit/929f616e43f3fa5cf6c036d7fbbd1c8b5316ae95))
+
+
+### Documentation
+
+* **release:** bump the pinned image/action tags to v0.3.6 ([67dcfcf](https://github.com/angel291592/caddiff/commit/67dcfcf85c741aa58381281e0367c674a699a5ce))
+
 ## [0.3.6](https://github.com/angel291592/caddiff/compare/v0.3.5...v0.3.6) (2026-10-11)
 
 
