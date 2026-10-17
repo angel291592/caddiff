@@ -22,6 +22,23 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.4.0](https://github.com/angel291592/caddiff/compare/v0.3.7...v0.4.0) (2026-10-17)
+
+
+### Features
+
+* **perf:** add an opt-in volume-based performance summary (`--perf`) ([fc9f39e](https://github.com/angel291592/caddiff/commit/fc9f39e2b8e592cf7633b6ab34ced14e0c536dc8))
+
+
+### Bug Fixes
+
+* **perf:** close the honesty gaps an independent review found in `--perf` ([1be825b](https://github.com/angel291592/caddiff/commit/1be825b81b2b162c707b0199905c224118cab00c))
+
+
+### Documentation
+
+* **release:** bump the pinned image/action tags to v0.3.7 ([96e0dff](https://github.com/angel291592/caddiff/commit/96e0dff158b232ae1e2c27cecca74fdcc915778f))
+
 ## [0.3.7](https://github.com/angel291592/caddiff/compare/v0.3.6...v0.3.7) (2026-10-16)
 
 
