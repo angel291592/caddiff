@@ -55,6 +55,12 @@ _DENSITY_UNITS = {
 }
 _DENSITY_RE = re.compile(r"^([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)(.*)$")
 
+# 已知最致密的元素是锇（22.59 g/cm³ ≈ 2.26e-05 kg/mm³）。超过它的密度一定是单位写错了
+# ——最常见的是把钢的 7.85 g/cm³ 写成 `--density 7.85`（不写单位按 kg/mm³ 读，差 1e6 倍）。
+# 这是**提示**而不是拒绝：取值约定由调用方决定（见 docs/performance.md §1），但一个比锇还
+# 致密 1e6 倍的密度不该悄悄算出一个 kg 数字。
+MAX_PLAUSIBLE_DENSITY_KG_PER_MM3 = 2.3e-05
+
 
 def parse_density(spec):
     """``--density`` 的取值 → kg/mm³。
@@ -190,11 +196,18 @@ def _delta_vector(new_values, old_values, what, length, side_missing, unavailabl
             if not (values and len(values) == length):
                 unavailable.append({"side": side, "label": None, "reason": side_missing})
         return None
+    # 哪一侧含非有限值就记哪一侧：把「新版是 NaN」写成「旧版缺张量」等于给了错的排查方向。
     try:
-        return [_number(n, what) - _number(o, what) for n, o in zip(new_values, old_values)]
+        numbers_new = [_number(v, what) for v in new_values]
+        numbers_old = [_number(v, what) for v in old_values]
     except ValueError:
-        unavailable.append({"side": "old", "label": None, "reason": side_missing})
+        for side, values in (("old", old_values), ("new", new_values)):
+            try:
+                [_number(v, what) for v in values]
+            except ValueError:
+                unavailable.append({"side": side, "label": None, "reason": side_missing})
         return None
+    return [n - o for n, o in zip(numbers_new, numbers_old)]
 
 
 def diff(old, new, rel_tol=DEFAULT_REL_TOL, density_kg_per_mm3=None, budget=None):

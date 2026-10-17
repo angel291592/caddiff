@@ -168,6 +168,26 @@ def test_thin_rod_like_tensor_is_still_valid():
     assert perf_snapshot.principal_valid([100.0, 60.0, 40.0])
 
 
+def test_tensor_validity_slack_is_relative_not_absolute():
+    # 这条钉住那个相对容差**真的在起作用**（它不是装饰参数）：超出等号的极小量在默认容差下
+    # 放过，容差归零时被拒。容差是相对 λ_max 的，与 --perf-tol（两版比较容差）是两件事。
+    assert perf_snapshot.principal_valid([100.0 + 1e-8, 50.0, 50.0])
+    assert not perf_snapshot.principal_valid([100.0 + 1e-8, 50.0, 50.0], rel_tol=0.0)
+
+
+def test_non_finite_tensor_reports_the_side_that_actually_broke():
+    # 把「新版是 NaN」写成「旧版缺张量」等于给排查指错方向：unavailable 的 side 必须是真的那一侧。
+    old = _snapshot([_obj("A-01", 100.0, (0.0, 0.0, 0.0))],
+                    inertia=[1.0, 1.0, 1.0, 0.0, 0.0, 0.0], principal=[3.0, 2.0, 1.0])
+    new = _snapshot([_obj("A-01", 100.0, (0.0, 0.0, 0.0))],
+                    inertia=[1.0, 1.0, float("nan"), 0.0, 0.0, 0.0], principal=[3.0, 2.0, 1.0])
+    block = perf_diff.diff(old, new)
+    assert block["delta_inertia_6"] is None
+    sides = [item["side"] for item in block["unavailable"]
+             if item["reason"] == perf_diff.REASON_NO_INERTIA_TENSOR]
+    assert sides == ["new"]
+
+
 def test_missing_tensor_is_reported_as_unavailable_not_as_zero():
     old = _snapshot([_obj("A-01", 100.0, (0.0, 0.0, 0.0))])
     new = _snapshot([_obj("A-01", 100.0, (0.0, 0.0, 0.0))],
@@ -344,7 +364,30 @@ def test_shells_and_degenerate_solids_are_counted_never_dropped_silently():
     assert snap["n_objects"] == 1
     assert snap["total_volume_mm3"] == 100.0
     reasons = [item["reason"] for item in snap["unavailable"]]
-    assert perf_snapshot.REASON_NEGATIVE_VOLUME in reasons
+    assert perf_snapshot.REASON_NON_POSITIVE_VOLUME in reasons
+
+
+def test_object_type_outside_the_list_is_reported_never_dropped_silently():
+    # 类型不在清单里但自带实体的对象（裸 Part::Compound 等）**不计数**（否则 PartDesign 的
+    # Body 与其 tip 特征会各算一次），但必须留下痕迹：静默丢弃等于让「没提到」被读成
+    # 「没有这个对象」（AGENTS.md §3.3）。
+    compound = _FakeObj("BareCompound", _FakeShape(500.0), type_id="Part::Compound")
+    snap = perf_snapshot.snapshot([compound], "old")
+    assert snap["n_objects"] == 0
+    assert [item["reason"] for item in snap["unavailable"]] == \
+        [perf_snapshot.REASON_UNSUPPORTED_TYPE]
+
+
+def test_zero_solid_datum_geometry_is_not_counted_as_a_shell():
+    # 基准轴/面（App::Line / App::Plane）也是「有形状、0 实体」，但它们不是零件、
+    # 也没有质量属性：计进「面/壳对象」只会给每份文件凭空加 6 条噪声。
+    axis = _FakeObj("X-axis", _FakeShape(0.0, n_solids=0), type_id="App::Line")
+    plane = _FakeObj("XY-plane", _FakeShape(0.0, n_solids=0), type_id="App::Plane")
+    part = _FakeObj("PLATE-01", _FakeShape(100.0))
+    snap = perf_snapshot.snapshot([axis, plane, part], "old")
+    assert snap["n_objects"] == 1
+    assert snap["n_zero_volume"] == 0
+    assert snap["unavailable"] == []
 
 
 def test_two_pass_parallel_axis_matches_the_analytic_value():

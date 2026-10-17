@@ -268,14 +268,21 @@ def run_diff(stp_old, stp_new, output_dir,
     """
     if lang:
         i18n.set_lang(lang)
-    if not perf and (perf_tol is not None or perf_budget is not None
-                     or density is not None):
-        print("  NOTE: --perf-tol / --perf-budget / --density only apply together "
-              "with --perf — ignoring them")
+    # 校验先于「这些参数会被忽略」的提示：否则 `--perf-budget 0` 会先说"忽略它"、紧接着又
+    # 因为它退出码 2——两句话互相矛盾。
     if perf_tol is not None and perf_tol < 0.0:
         raise PipelineError("--perf-tol must be non-negative")
     if perf_budget is not None and perf_budget <= 0.0:
         raise PipelineError("--perf-budget must be positive")
+    if not perf and (perf_tol is not None or perf_budget is not None
+                     or density is not None):
+        print("  NOTE: --perf-tol / --perf-budget / --density only apply together "
+              "with --perf — ignoring them")
+    if density is not None and density > perf_diff.MAX_PLAUSIBLE_DENSITY_KG_PER_MM3:
+        # 不拒绝（取值约定见 docs/performance.md §1），但一个比锇还致密 1e6 倍的密度
+        # 不该悄悄算出一个 kg 数字。
+        print("  NOTE: --density %.3g kg/mm3 is denser than any known material "
+              "(osmium ≈ 2.3e-05) — did you mean g/cm3?" % density)
 
     stp_old = os.path.abspath(stp_old)
     stp_new = os.path.abspath(stp_new)
@@ -371,6 +378,11 @@ def run_diff(stp_old, stp_new, output_dir,
             raise PipelineError(f"performance diff failed: {exc}") from exc
         with open(perf_json, "w", encoding="utf-8") as f:
             json.dump(perf_block, f, ensure_ascii=False, indent=2)
+        if perf_block.get("degraded_reason"):
+            # 降级必须留痕（AGENTS.md §3.4）：JSON 里有标记，控制台再喊一声，避免读者把
+            # 一个没通过自检的分摊当正常结论。
+            print("  WARN: the performance block is degraded (%s) — see perf_diff.json"
+                  % perf_block["degraded_reason"])
         print("  OK (performance block written)")
 
     # Step 4: 渲染截图（FreeCAD Python，需要 GUI / 虚拟显示）
@@ -392,6 +404,11 @@ def run_diff(stp_old, stp_new, output_dir,
     summary = build_summary(bom_json, geom_json, render_manifest,
                             label_old or "", label_new or "",
                             perf_json=perf_json if perf else None)
+    if perf and not summary.get("performance_diff"):
+        # 产物读不回来时键在、数字为空：对开了 --perf 的人来说，人读产物会与「没开」一模一样，
+        # 所以这里必须出声（JSON 里那个空键是给机器看的，不是给读者看的）。
+        print("  NOTE: the performance block could not be read back — the report will "
+              "omit the performance section (see perf_diff.json)")
     # 渲染用的是哪条死线，必须落进 manifest：否则「这一步超时了」无法复现，
     # 也无法判断该调大估算还是真出了问题。估算/覆盖值都在这里显形。
     summary.setdefault("settings", {})["render_timeout_s"] = effective_render_timeout

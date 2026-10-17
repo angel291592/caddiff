@@ -287,6 +287,11 @@ def _perf_rows(summary, t):
 
 def _perf_contributors(summary):
     perf = summary.get("performance_diff") or {}
+    if perf.get("degraded_reason"):
+        # 分摊没通过自检（或没有体积可分摊）时**不展示**这张清单：一个没验证过的
+        # 「谁是主犯」比没有更糟。降级原因留在 perf_diff.json 的 degraded_reason 里，
+        # 运行时也会在控制台喊一声（见 run_pipeline）。
+        return []
     out = []
     for item in perf.get("contributors") or []:
         d_mm = item.get("d_mm") or []

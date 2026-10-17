@@ -45,7 +45,11 @@ mass was computed."* With `--density 7.85 g/cm3` the mass is `volume × density`
 recorded in `settings.density_source = "cli"` and `settings.density_kg_per_mm3`, so a reader can
 always tell where the number came from. Accepted units: `kg/mm3` (also free of unit = same),
 `g/cm3`, `kg/m3`; an unknown unit is a hard error (parameter error → exit 2), never a guess —
-mixing up `g/cm3` and `kg/mm3` is a factor of 1e6.
+mixing up `g/cm3` and `kg/mm3` is a factor of 1e6. A unit-less value is read as kg/mm³ (FreeCAD's
+internal unit), so the plausible-but-wrong input `--density 7.85` (steel in g/cm³) means
+7.85 kg/mm³ — a million times denser than any real material. The run therefore prints a console
+note once the value exceeds osmium (2.3e-05 kg/mm³): the figure is still computed exactly as
+given, but it is never silently absurd.
 
 ## 2. Which numbers, and why exactly these
 
@@ -127,14 +131,27 @@ objects[]  = {label, base_name, volume_mm3, area_mm2, bbox_mm[3], centroid_mm[3]
 unavailable[] = {label, reason}
 ```
 
-`reason` is a machine-read enum, never translated: `no_shape`, `no_centroid`, `non_finite`,
-`budget_exceeded`, `negative_volume`. `centroid_source` records which fallback answered
-(`CenterOfMass` → `CenterOfGravity` → `StaticMoments/Volume`) — `Part::Compound` raises
-`AttributeError` on the first and the third.
+`reason` is a machine-read enum, never translated: `no_shape`, `no_centroid`, `volume_unavailable`,
+`bbox_unavailable`, `non_finite`, `budget_exceeded`, `non_positive_volume` (the counter keeps its
+contract name `n_negative_volume` and counts volume ≤ 0, while the reason says what actually
+happened), `unsupported_type` (an object of a type outside the accepted list that nevertheless
+carries solids — it is not counted, but it is never dropped silently).
+`centroid_source` records which fallback answered (`CenterOfMass` → `CenterOfGravity` →
+`StaticMoments/Volume`) — `Part::Compound` raises `AttributeError` on the first and the third.
+Faces/shells (objects with no solids) are **counted** in `n_zero_volume` but deliberately **not
+named** in `unavailable`: one measured assembly had 189 of them, the honesty line only needs the
+count, and naming them would bloat the artifact for no consumer. Every other exclusion is named.
 
 `inertia_about_centroid_6` is `null` when **any** counted object has no tensor: a tensor summed
 over a subset would look like a measurement while silently missing a part. Principal moments are
 `null` when the tensor is missing or fails the physical validity check (§7).
+
+The snapshot also self-checks the aggregate tensor against the rigorous bound
+`tr(I_C) ≤ 2·V·d²` (`d` = bbox diagonal) and prints a console warning when it is violated. That
+check has teeth: a parallel-axis term applied twice, or not at all, pushes the trace out of the
+bound (pitfall F3), whereas the volume/first-moment identity is algebraically exact and can only
+catch a future refactor that computes the totals along a different path. Measured on six pairs
+(five single-part fixtures plus two real assemblies of 44–48 parts): no warning.
 
 ### `perf_diff.json`
 
@@ -171,16 +188,24 @@ directly — that would create a second source of truth).
   be displayed as `0`.
 - The honesty line *"Based on {n} closed solids only; {m} surface/shell objects were not counted."*
   goes into the "Not compared / not resolved" section, with `n` = counted solids **of the new
-  revision** and `m` = `n_zero_volume + len(unavailable)` (shells, degenerate solids, non-finite
-  objects, objects not reached within the budget). It is shown when `m > 0` or when nothing at all
-  was counted.
+  revision** and `m` = `n_zero_volume + len(unavailable)` (shells, degenerate solids, objects with
+  no shape, non-finite objects, unsupported types, objects not reached within the budget). It is
+  shown when `m > 0` or when nothing at all was counted. Note the noun: the sentence says
+  "surface/shell objects", but `m` deliberately counts **every** excluded object. The wording is the
+  plan's fixed copy; the count is chosen so the report can never **under**-report what was left out,
+  and the per-object reasons are in `perf_snapshot.json` / `perf_diff.json`.
 - Disclaimers: "Material density is not confirmed…" only while `settings.density_source != "cli"`;
   the centre-of-gravity and stiffness sentences always; the allocation sentence only when
   contributors are listed.
+- When `degraded_reason` is set (the allocation identity failed, or there was no volume to allocate
+  over), the contributor list is **not** printed: an unvalidated "who is to blame" is worse than
+  none. The reason stays in `perf_diff.json` and the run also prints a console warning.
 - When the run reports **no differences** and a performance block exists, the section is prefixed
   with *"Geometry and BOM are unchanged; the performance figures below differ only within the
   configured tolerance."* — otherwise a reader would see "no differences" and a set of numbers that
   appear to contradict it.
+- If the performance block cannot be read back at all (the key exists but is empty), the run prints
+  a console note — otherwise a human-readable report would look exactly like a run without `--perf`.
 
 ## 7. Pitfalls hit (all measured; do not "fix" these back)
 
@@ -214,7 +239,11 @@ directly — that would create a second source of truth).
 - A file that imports as **one object with no child objects** (a single compound holding several
   solids, e.g. a fused multi-body part) is reported as one part: per-part attribution and the
   inertia tensor are then unavailable. Splitting such a compound into its solids is not attempted —
-  the solids carry no part names to attribute them to.
+  the solids carry no part names to attribute them to. That statement is about what the STEP
+  importer produces (`Part::Feature` / `App::Part`, including one whose Shape is a compound). An
+  object of a **different** type that carries solids (a bare `Part::Compound`, a `PartDesign::Body`)
+  is deliberately **not** counted — counting a Body together with its tip feature would double-count
+  — but it is reported as not counted with reason `unsupported_type`, never dropped silently.
 - Objects not reached within `--perf-budget` are reported as not counted, not estimated.
 - Heuristic performance indicators (slenderness, stress-raising geometry) and solver-based
   comparison (T1/T2) are **out of scope**: the former needs a second moment of area and a

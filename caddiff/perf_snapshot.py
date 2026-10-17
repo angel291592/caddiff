@@ -30,9 +30,19 @@ GEOMETRY_TYPES = ("Part::Feature", "App::Part")
 # ``unavailable[].reason`` 是机器读的枚举值，**不翻译**（AGENTS.md §4）。
 REASON_NO_SHAPE = "no_shape"
 REASON_NO_CENTROID = "no_centroid"
+REASON_VOLUME_UNAVAILABLE = "volume_unavailable"
+REASON_BBOX_UNAVAILABLE = "bbox_unavailable"
 REASON_NON_FINITE = "non_finite"
 REASON_BUDGET_EXCEEDED = "budget_exceeded"
-REASON_NEGATIVE_VOLUME = "negative_volume"
+# ⚠️ 计数器的名字（``n_negative_volume``）来自字段契约，指的是「体积 ≤ 0」这一桶；
+# reason 才写它真正的含义（体积恰为 0 的实体也是退化件，不是"负体积"）。
+REASON_NON_POSITIVE_VOLUME = "non_positive_volume"
+REASON_UNSUPPORTED_TYPE = "unsupported_type"
+
+# walk_objects 的第三态：类型不在 GEOMETRY_TYPES 里、但自带实体。
+# 它**不计数**（类型清单是刻意的：PartDesign 的 Body 与其 tip 特征同时取会重复计数），
+# 但**必须留痕**——静默丢弃等于让「没提到」被读成「没有这个对象」（AGENTS.md §3.3）。
+UNSUPPORTED = object()
 
 # 体积守恒自检的相对容差：仅用于发现「累加路径被改坏」，正常浮点累加远小于它。
 _CONSERVATION_RTOL = 1e-9
@@ -83,6 +93,14 @@ def shape_of(obj):
     return shp
 
 
+def _has_solids(shape):
+    """形状里是否有实体（用于区分「真的是一块料」与基准/草图那类零实体几何）。"""
+    try:
+        return len(shape.Solids) > 0
+    except Exception:                                     # noqa: BLE001
+        return False
+
+
 def walk_objects(objects):
     """深度优先遍历对象树，逐个产出 ``(obj, shape)``；**只取叶子**。
 
@@ -97,8 +115,8 @@ def walk_objects(objects):
     体积之和"，也正是既有决策 D-015 的口径（容器被视为子件并集的重复，不参与比对）。
 
     只从**根对象**开始走（没有父对象的那些），否则容器与其子件会被各算一次。
-    ``shape`` 为 None 表示「该对象是几何类型但既没有可用 Shape，子件里也没有任何产出」，
-    由调用方记 ``no_shape``。
+    产出三种形态：``(obj, shape)`` 计入、``(obj, None)`` 记 ``no_shape``、
+    ``(obj, UNSUPPORTED)`` 记 ``unsupported_type``（类型不在清单里但自带实体）。
     """
     by_id = {id(o): o for o in objects}
     kids = {}
@@ -132,21 +150,25 @@ def walk_objects(objects):
             return
         seen.add(oid)
         children = kids.get(oid, ())
-        if getattr(obj, "TypeId", "") not in GEOMETRY_TYPES:
-            # 非几何对象（草图 / 基准 / 未知容器）自身没有质量属性；有 Group 就继续下钻。
-            for child in children:
-                yield from visit(child)
-            return
+        accepted = getattr(obj, "TypeId", "") in GEOMETRY_TYPES
         shape = shape_of(obj)
         if shape is not None and not any(yields(child) for child in children):
-            yield obj, shape
+            if accepted:
+                yield obj, shape
+            elif _has_solids(shape):
+                # 类型不在清单里但**自带实体**（裸 Part::Compound / PartDesign::Body /
+                # Part::Box …）：不当作零件（否则 Body 与它的 tip 特征会各算一次），
+                # 但也不能静默消失——交给调用方记 unsupported_type。
+                yield obj, UNSUPPORTED
+            # 0 实体的基准/草图几何（App::Line / App::Plane / Sketch）不是零件、也没有质量
+            # 属性，静默略过是刻意的：把它们计进「面/壳对象」只会给每份文件凭空加 6 条噪声。
             return
         produced = False
         for child in children:
             for item in visit(child):
                 produced = True
                 yield item
-        if not produced:
+        if not produced and accepted:
             yield obj, None
 
     for obj in objects:
@@ -332,6 +354,9 @@ def snapshot(objects, side, budget_s=DEFAULT_BUDGET_S):
         if shp is None:
             unavailable.append({"label": name, "reason": REASON_NO_SHAPE})
             continue
+        if shp is UNSUPPORTED:
+            unavailable.append({"label": name, "reason": REASON_UNSUPPORTED_TYPE})
+            continue
         # 预算检查放在任何真正的几何查询之前——超预算后再查 Volume 就等于预算没生效。
         if time.time() - started > budget_s:
             unavailable.append({"label": name, "reason": REASON_BUDGET_EXCEEDED})
@@ -348,7 +373,7 @@ def snapshot(objects, side, budget_s=DEFAULT_BUDGET_S):
         try:
             volume = float(shp.Volume)
         except Exception:                                 # noqa: BLE001
-            unavailable.append({"label": name, "reason": REASON_NO_CENTROID})
+            unavailable.append({"label": name, "reason": REASON_VOLUME_UNAVAILABLE})
             continue
         if not math.isfinite(volume):
             unavailable.append({"label": name, "reason": REASON_NON_FINITE})
@@ -356,7 +381,7 @@ def snapshot(objects, side, budget_s=DEFAULT_BUDGET_S):
         if volume <= 0.0:
             # 负体积 / 零体积是退化几何：**不取 abs 掩盖**（取了就会把它当正常实体累加）
             n_negative_volume += 1
-            unavailable.append({"label": name, "reason": REASON_NEGATIVE_VOLUME})
+            unavailable.append({"label": name, "reason": REASON_NON_POSITIVE_VOLUME})
             continue
         try:
             centroid, centroid_source = centroid_of(shp)
@@ -368,7 +393,7 @@ def snapshot(objects, side, budget_s=DEFAULT_BUDGET_S):
             bbox = shp.BoundBox
             bbox_mm = [float(bbox.XLength), float(bbox.YLength), float(bbox.ZLength)]
         except Exception:                                 # noqa: BLE001
-            unavailable.append({"label": name, "reason": REASON_NO_CENTROID})
+            unavailable.append({"label": name, "reason": REASON_BBOX_UNAVAILABLE})
             continue
         if not (all(math.isfinite(v) for v in centroid)
                 and math.isfinite(area) and all(math.isfinite(v) for v in bbox_mm)):
@@ -421,12 +446,12 @@ def snapshot(objects, side, budget_s=DEFAULT_BUDGET_S):
     else:
         principal_moments, principal_axes = principal_from_tensor(inertia)
 
-    _check_conservation(parts, total_volume, centroid)
-
     if box[0] is None:
         bbox_mm = [0.0, 0.0, 0.0]
     else:
         bbox_mm = [float(box[i + 3] - box[i]) for i in range(3)]
+
+    _check_conservation(parts, total_volume, centroid, inertia, bbox_mm)
 
     return {
         "side": side,
@@ -446,12 +471,16 @@ def snapshot(objects, side, budget_s=DEFAULT_BUDGET_S):
     }
 
 
-def _check_conservation(parts, total_volume, centroid):
-    """自检：逐件体积之和与总量、以及一阶矩与 ``总量×质心`` 必须一致。
+def _check_conservation(parts, total_volume, centroid, inertia, bbox_mm):
+    """自检：① 逐件体积之和/一阶矩与总量一致；② 聚合张量满足物理上界。
 
-    这条恒等式在数学上是恒真的，所以它抓的不是"逻辑错"，而是**将来的重构把累加路径改坏**
-    （例如有人改成用容器 Shape 的体积当总量、或先算质心再累加体积）。不满足就打到控制台
-    （英文，控制台输出不进 i18n 表）；数值本身不写进产物，避免下游把自检值当结论。
+    ① 的两条恒等式在数学上是恒真的，所以它抓的不是"逻辑错"，而是**将来的重构把累加路径
+    改坏**（例如有人改成用容器 Shape 的体积当总量、或先算质心再累加体积）。
+    ② 才有真正的判别力：物体落在边长 (a,b,c) 的盒子里时 ``I_x ≤ V·(b²+c²)``，故
+    ``tr(I_C) ≤ 2·V·d²``（d = 盒子对角线）**严格成立**；把平行轴项加两遍、或整项漏掉，
+    都会把 trace 推到界外——那正是两遍累积（坑 F3）写错时的典型症状。
+    不满足就打到控制台（英文，控制台输出不进 i18n 表）；数值本身不写进产物，避免下游把
+    自检值当结论。
     """
     if not parts or total_volume <= 0.0:
         return
@@ -463,3 +492,12 @@ def _check_conservation(parts, total_volume, centroid):
     if gap > _CONSERVATION_RTOL * total_volume:
         print(f"  WARN: volume/centroid self-check gap {gap:.3e} "
               f"(total {total_volume:.3f} mm3) — the accumulation may be broken")
+    if inertia is None:
+        return
+    diagonal = math.sqrt(sum(float(v) * float(v) for v in bbox_mm))
+    bound = 2.0 * total_volume * diagonal * diagonal
+    trace = inertia[0] + inertia[1] + inertia[2]
+    if not math.isfinite(trace) or trace > bound * (1.0 + 1e-9):
+        print(f"  WARN: inertia trace {trace:.6g} exceeds the physical bound {bound:.6g} mm5 "
+              f"(bbox diagonal {diagonal:.3f} mm) — the parallel-axis accumulation "
+              "may be broken")
