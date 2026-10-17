@@ -123,3 +123,72 @@ def test_labels_and_settings_are_passed_through(tmp_path):
     assert s["label_old"] == "v1.2"
     assert s["label_new"] == "v1.3"
     assert s["settings"]["boolean_timeout_s"] == 60
+
+
+# ────────────────────────── --perf 开关语义 ──────────────────────────
+# 这一组守的是「性能功能永不改变 CI 闸门的判定」这条对外承诺（AGENTS.md §3.1）。
+
+_PERF_BLOCK = {"delta_volume_mm3": -192.0, "delta_volume_pct": -13.33,
+               "centroid_shift_mm": 0.4, "dominant_axis": "\u2212X",
+               "contributors": [{"label": "BRACKET-03", "d_mm": [-0.4, 0.0, 0.0]}],
+               "old": {"total_volume_mm3": 1440.0, "n_objects": 1, "n_not_counted": 0},
+               "new": {"total_volume_mm3": 1248.0, "n_objects": 1, "n_not_counted": 0},
+               "settings": {"density_source": "none"}, "unavailable": []}
+
+
+def _summary_with_perf(tmp_path, perf, **kw):
+    return run_pipeline.build_summary(
+        _write(tmp_path / "bom.json", {"removed": [], "added": [], "candidates": []}),
+        _write(tmp_path / "geom.json", {}),
+        _write(tmp_path / "render.json", []),
+        perf_json=_write(tmp_path / "perf.json", perf),
+        **kw)
+
+
+def test_performance_block_is_absent_unless_requested(tmp_path):
+    # --perf 关闭：summary 里连键都不能出现（无 --perf 的产物必须与旧版一致）
+    s = _summary(tmp_path)
+    assert "performance_diff" not in s
+
+
+def test_performance_block_is_carried_when_requested(tmp_path):
+    s = _summary_with_perf(tmp_path, _PERF_BLOCK)
+    assert s["performance_diff"]["delta_volume_mm3"] == -192.0
+
+
+def test_missing_performance_artifact_keeps_the_key_but_has_no_numbers(tmp_path):
+    # 开了 --perf 但性能产物读不出来：键要在（说明这次开了），数字为空——
+    # 不能反过来假装没开，那是把执行失败伪装成「没有性能差异」。
+    s = run_pipeline.build_summary(
+        _write(tmp_path / "bom.json", {}),
+        _write(tmp_path / "geom.json", {}),
+        _write(tmp_path / "render.json", []),
+        perf_json=str(tmp_path / "does-not-exist.json"))
+    assert s["performance_diff"] == {}
+
+
+def test_performance_never_changes_has_differences(tmp_path):
+    # 关 / 开 --perf 两个场景下 has_differences 必须完全一致——它正是退出码 0/1 的唯一判据。
+    no_diff = {"removed": [], "added": [], "candidates": [{"base_name": "PLATE",
+                                                           "count_match": True}]}
+    with_diff = {"removed": ["OLD-A"], "added": [], "candidates": []}
+    for bom in (no_diff, with_diff):
+        base = run_pipeline.build_summary(
+            _write(tmp_path / "bom.json", bom),
+            _write(tmp_path / "geom.json", {}),
+            _write(tmp_path / "render.json", []))
+        with_perf = run_pipeline.build_summary(
+            _write(tmp_path / "bom.json", bom),
+            _write(tmp_path / "geom.json", {}),
+            _write(tmp_path / "render.json", []),
+            perf_json=_write(tmp_path / "perf.json", _PERF_BLOCK))
+        assert with_perf["has_differences"] == base["has_differences"]
+
+
+def test_performance_only_run_still_reports_no_differences(tmp_path):
+    # 几何/BOM 无差异、只有性能差异：结论仍是「无差异」（退出码 0），
+    # 但无差异原因与性能块同时在，报告才有材料解释这两件事为什么能并存。
+    s = _summary_with_perf(tmp_path, _PERF_BLOCK)
+    assert s["has_differences"] is False
+    assert s["reason"] == i18n.t("summary.no_geometry_diff")
+    assert s["performance_diff"]["delta_volume_mm3"] == -192.0

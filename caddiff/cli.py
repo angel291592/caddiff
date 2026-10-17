@@ -34,6 +34,7 @@ if SCRIPT_DIR not in sys.path:
 
 import console  # noqa: E402
 import i18n  # noqa: E402
+import perf_diff  # noqa: E402  （--density 的取值解析：纯逻辑，不碰 FreeCAD）
 import run_pipeline  # noqa: E402
 from version import __version__  # noqa: E402
 
@@ -76,6 +77,21 @@ def _add_diff_args(parser, *, with_out=True, out_default=DEFAULT_OUT):
                         help="comma-separated base_names to skip")
     parser.add_argument("--min-diff-pct", type=float, default=None,
                         help="only report diffs larger than this %% of the part volume (default: 0)")
+    parser.add_argument("--perf", action="store_true",
+                        help="also report a volume-based performance summary (solid volume, "
+                             "volume-weighted centroid, volume inertia about the assembly "
+                             "centroid); off by default, and it never changes the exit code")
+    parser.add_argument("--perf-tol", type=float, default=None, metavar="T",
+                        help="relative tolerance for the performance comparison, as a fraction "
+                             "of the assembly size (default: 1e-06)")
+    parser.add_argument("--perf-budget", type=float, default=None, metavar="S",
+                        help="time budget in seconds per revision for the performance probe "
+                             "(default: 300); objects not reached in time are reported as not "
+                             "counted instead of being dropped silently")
+    parser.add_argument("--density", type=perf_diff.parse_density, default=None, metavar="SPEC",
+                        help="material density you have confirmed, e.g. '7.85 g/cm3' or "
+                             "'7.85e-06 kg/mm3'; without it no mass is computed at all "
+                             "(default: none)")
     return parser
 
 
@@ -111,7 +127,9 @@ def _run_diff_args(args, output_dir):
         max_faces=args.max_faces, boolean_timeout=args.boolean_timeout,
         skip_parts=args.skip_parts, min_diff_pct=args.min_diff_pct,
         render_timeout=args.render_timeout,
-        export_pptx=args.pptx)
+        export_pptx=args.pptx,
+        perf=args.perf, perf_tol=args.perf_tol, perf_budget=args.perf_budget,
+        density=args.density)
     return manifest
 
 

@@ -49,13 +49,18 @@ OLD.stp, NEW.stp
    │     → geom_diff.json（bbox世界坐标 / parent_chain / 体积数值字段 /
    │                       change_type / skipped_parts / global_alignment / settings）
    │
-   ├─ [3] render_diff.py（FreeCAD Python，GUI模式）
+   ├─ [3] perf_probe.py（FreeCAD Python，独立可 kill 的子进程）      ← 仅 --perf
+   │     两版各开一个文档 Import.insert → 逐零件体积 / 体积加权中心 / 绕整体质心的体积惯量
+   │     → perf_snapshot.json（原始数字）；再由 perf_diff.py（纯逻辑，不碰 FreeCAD）比较两份快照
+   │       → perf_diff.json（差值与中心位移的精确分摊）。每个数字为什么是它：见 performance.zh-CN.md
+   │
+   ├─ [4] render_diff.py（FreeCAD Python，GUI模式）
    │     预算(precompute) → 注入(inject) → 渲染(render)  ← 顺序是硬约束
    │     shape_changed 出3张图（整体定位 / 新版特写 / 旧版特写）
    │     moved 出3张图（整体定位 / 新位置 / 旧位置 + 位移箭头）
    │     → PNG（落在 `<out>/images/`）+ render_manifest.json（含品红像素自检数；每处差异渲完即原子落盘）
    │
-   └─ [4] 报告拼版（系统Python）
+   └─ [5] 报告拼版（系统Python）
          先落 diff_manifest.json（机器契约，含 summary）
          按 change_type 分派两套版式；空 manifest 出"未检出差异"说明页
          → report.html / report.md；--pptx 时额外 → compare.pptx
@@ -92,21 +97,28 @@ caddiff diff examples/demo_old.stp examples/demo_new.stp -o caddiff-out
 #   --boolean-timeout 60            单次布尔的硬超时秒数
 #   --skip-parts NAME1,NAME2        显式跳过指定零件（按 base_name 精确匹配）
 #   --min-diff-pct 0.1              相对阈值：差异须大于零件体积的该百分比（默认 0 不启用）
+#   --perf                          额外给出体积类性能摘要（实体体积 / 体积加权中心 / 绕整体质心的体积惯量）；默认关闭，且永不改变退出码（见 performance.zh-CN.md）
+#   --perf-tol 1e-06                性能比较的相对容差，按装配体尺度折算
+#   --perf-budget 300               每版的取数预算秒数；没走到的对象记为「未计入」
+#   --density '7.85 g/cm3'          你已确认的材料密度（kg/mm3 / g/cm3 / kg/m3）；不给就完全不算质量
 #   --version / --help
 ```
 
-产物全部落在 `<out>` 下：`diff_manifest.json`（机器契约，含 `summary`）、`report.html`、`report.md`、`images/*.png`（差异图）、`images/render_manifest.json`（**渲染模块与报告模块之间的中间契约**：逐处差异的图片文件名与像素自检数，字段契约见 §8），中间产物 `bom_diff.json` 与 `geom_diff.json`；`--pptx` 时另有 `compare.pptx`。
+产物全部落在 `<out>` 下：`diff_manifest.json`（机器契约，含 `summary`）、`report.html`、`report.md`、`images/*.png`（差异图）、`images/render_manifest.json`（**渲染模块与报告模块之间的中间契约**：逐处差异的图片文件名与像素自检数，字段契约见 §8），中间产物 `bom_diff.json` 与 `geom_diff.json`；`--pptx` 时另有 `compare.pptx`，`--perf` 时另有 `perf_snapshot.json` + `perf_diff.json`（字段契约与每个数字的理由见 [`performance.zh-CN.md`](performance.zh-CN.md)）。
 
 退出码是**对外契约**，可直接当 CI 闸门：`0` = 两版无差异 · `1` = 检出差异 · `2` = 执行失败（输入不可读 / 子进程超时或崩溃 / 内部错误）。
 
-单步调试时各脚本的参数（注意步骤 3 是 **4 个参数**，需要新旧两个 STP）：
+单步调试时各脚本的参数（注意**渲染步**是 **4 个参数**，需要新旧两个 STP；它的步骤号在不开 `--perf` 时是 3、开了是 4）：
 
 ```bash
 python caddiff/bom_diff.py <stp_old> <stp_new> <bom_diff.json>
 <FreeCAD>/bin/python.exe caddiff/geom_diff.py <bom_diff.json> <stp_old> <stp_new> <geom_diff.json>
+<FreeCAD>/bin/python.exe caddiff/perf_probe.py <stp_old> <stp_new> <perf_snapshot.json> [--budget 300]
 <FreeCAD>/bin/python.exe caddiff/render_diff.py <geom_diff.json> <stp_old> <stp_new> <images_dir>
 python caddiff/build_pptx.py <render_manifest.json> <compare.pptx>
 ```
+
+`perf_diff.py` **刻意不做成脚本**：比较两份快照是纯算术、不碰几何，流水线直接在本进程调用；调试它只需要一份快照（`python -c "import perf_diff, json; ..."`）。只有质量属性查询必须独立成进程——那是 `perf_probe.py`。
 
 **合成用例（`moved` 类的唯一端到端验证途径）**：真实 STP 里三处差异全是 `shape_changed`，`moved` 分支在本装配体上跑不到。用 `make_moved_fixture.py` 生成一对合成 STP（SLIDER 平移 5mm / BRACKET 减料 192mm³ / BASEPLATE 不变）来验：
 
@@ -370,6 +382,7 @@ why 只在体积差超容差时降级：纯 bbox 变化（如旋转）没有体�
 - 渲染依赖 FreeCAD 完整 GUI 模式（`showMainWindow()`），运行时会短暂弹窗，不是完全无头。`setupWithoutGUI()` 试过，无法创建 ActiveDocument/ActiveView，不可用。
 - **完全藏在装配体内部的差异，整体图仍看不到高亮**（实测 PART-C：即使非目标零件设 85 透明度，26 个方向里能看到它的只有一个正交侧视，而那张图画面糊成线框团）。此时代码走 fallback、选画面最清楚的方向、纯靠红框定位，并在报告与 PPT 文字带里说明原因。这是"看得懂的定位图"与"有高亮但看不懂的图"之间的取舍，不是 bug。
 - 纯减料的零件，新版特写图上没有品红（材料只在旧版存在）。若人工觉得这种情况不够直观，下一步可考虑在新版图上叠一层半透明的"原材料位置"示意。
+- **性能摘要（`--perf`）只覆盖体积类量**：材质/密度变更不在覆盖范围（STEP 通常不带材料信息）；导入后只有一个对象、且它没有子对象的文件会被当成一个零件，此时逐零件归因与惯性张量都不可用。理由与完整清单见 [`performance.zh-CN.md`](performance.zh-CN.md) §8。
 - 视角扫描使整条流水线从约 210s 增至约 355s（渲染 197s：每个差异多扫 26 个方向、每方向约 0.85s；几何 155s：其中 62s 是 PART-B 的布尔超时等待）。
 - `moved` 类差异只报位移量与旋转角，**不做"沿哪条路径移动"的判定**，也不识别"零件被换成同体积的另一个零件"这种情形（体积与 bbox 都对得上时会被判 moved）。判据刻意从严，误判会落到 `shape_changed` 这个安全侧。
 - `moved` 的旋转角优先用 `Shape.Placement.Rotation`；取不到时退化为"bbox 三边长多重集相同但排列不同"，那是**充分不必要**判据（对非 90° 整数倍的旋转不敏感），此时产物里标 `rotation_detected_by: "bbox_permutation"`，报告与 PPT 都注明"置信度较低"。
@@ -412,7 +425,7 @@ translation_mm, rotation_deg, rotation_detected_by, bbox_2d_closeup_old
 
 ## 9. CLI 接口边界（`caddiff diff` / `caddiff difftool`，调用方必读）
 
-`caddiff diff` 是主入口：两个 STP 进去，`<out>` 下产出 `diff_manifest.json`（机器契约，含 `summary`）+ `report.html` / `report.md`（人读报告）+ `images/*.png`（差异图），中间产物 `bom_diff.json` / `geom_diff.json` 保留，`--pptx` 时另有 `compare.pptx`。另有 git 集成入口 `caddiff difftool`（选项与 `diff` 相同，只是 `-o` 默认落到新建的临时目录并打印报告路径）：**它检出差异也返回 0，只有执行失败才返回 2**——`git difftool` 把工具的非零退出码当成「external diff died」并中断整个 diff，所以检出差异必返 1 的 `diff` 不能给 git 用；反过来 **`difftool` 不能当 CI 闸门**（它永远不会因检出差异而返回非零），CI 里一律用 `caddiff diff`。git 侧配置与用法见 [`git-integration.md`](git-integration.md)。
+`caddiff diff` 是主入口：两个 STP 进去，`<out>` 下产出 `diff_manifest.json`（机器契约，含 `summary`）+ `report.html` / `report.md`（人读报告）+ `images/*.png`（差异图），中间产物 `bom_diff.json` / `geom_diff.json` 保留，`--pptx` 时另有 `compare.pptx`，`--perf` 时另有 `perf_snapshot.json` / `perf_diff.json`（见 [`performance.zh-CN.md`](performance.zh-CN.md)）。另有 git 集成入口 `caddiff difftool`（选项与 `diff` 相同，只是 `-o` 默认落到新建的临时目录并打印报告路径）：**它检出差异也返回 0，只有执行失败才返回 2**——`git difftool` 把工具的非零退出码当成「external diff died」并中断整个 diff，所以检出差异必返 1 的 `diff` 不能给 git 用；反过来 **`difftool` 不能当 CI 闸门**（它永远不会因检出差异而返回非零），CI 里一律用 `caddiff diff`。git 侧配置与用法见 [`git-integration.md`](git-integration.md)。
 
 **调用契约**
 ```bash
@@ -431,6 +444,11 @@ caddiff diff <OLD.stp> <NEW.stp> [选项]
   --boolean-timeout S   单次布尔运算硬超时秒数（默认 60）
   --min-diff-pct P      差异体积须大于零件体积的百分比（默认 0，不启用）
   --skip-parts A,B      跳过指定零件（按 base_name 精确匹配）
+  --perf                额外给出体积类性能摘要（实体体积 / 体积加权中心 / 绕整体质心的体积惯量）；
+                        默认关闭，且永不改变退出码
+  --perf-tol T          性能比较的相对容差（默认 1e-06，按装配体尺度折算）
+  --perf-budget S       每版取数预算秒数（默认 300）；没走到的对象记为「未计入」
+  --density SPEC        你已确认的密度，如 '7.85 g/cm3'（kg/mm3 / g/cm3 / kg/m3）；不给就完全不算质量
   --version / --help
 ```
 
@@ -459,6 +477,10 @@ summary.total_candidates              比对候选零件数
 summary.settings                      本次实际生效的闸门取值（便于复现与调参）
 summary.reason                        仅 has_differences=false 时出现；
                                       两版未检出差异的有效结论说明
+summary.performance_diff              仅 --perf 时出现；整块性能结果（差值 + 每版绝对值 +
+                                      贡献分摊 + settings）。它**不参与** has_differences / 退出码；
+                                      报告读的是它，而不是再打开 perf_diff.json
+                                      （字段契约见 performance.zh-CN.md §5）
 ```
 
 **中间的三个 `skipped/unresolved/filtered` 是"诚实性"字段：不回传给用户，就等于让读者把"没提到"理解成"没差异"。** 逐差异的图片路径与像素自检数仍在 `render_manifest.json`，需要贴图或做校验时才读它。
@@ -480,10 +502,13 @@ summary.reason                        仅 has_differences=false 时出现；
 - `caddiff/bom_diff.py` — BOM 差异（系统 Python，纯文本解析 STEP 的 PRODUCT 实体）
 - `caddiff/geom_diff.py` — 几何差异（FreeCAD Python，console 模式）。`classify_change()` 三态分类（identical/moved/shape_changed）；`placement_delta()` 算位移与旋转；`symmetric_diff_isolated()` 把布尔丢进子进程并硬超时（坑 I1）；`check_global_alignment()` 由已配对零件的位移一致性判整体配准（坑 I4）。产出含 `change_type`/`skipped_parts`/`filtered_by_threshold`/`global_alignment`/`settings`
 - `caddiff/boolean_worker.py` — 子进程里做布尔对称差（FreeCAD Python）。**必须先 import FreeCAD 再 import Part**，否则 0xC0000005 崩溃（坑 I1）
+- `caddiff/perf_probe.py` — 体积类质量属性快照，跑在独立可 kill 的子进程里（仅 `--perf`，FreeCAD Python）：两版各开一个临时文档，再调 `perf_snapshot.snapshot()`。遍历规则是**只加叶子**——容器的 Shape 是 Compound、没有 `MatrixOfInertia`，取容器会让逐零件归因与整个张量一起消失（四份真实装配体实测，见 [`performance.zh-CN.md`](performance.zh-CN.md) §3）
+- `caddiff/perf_snapshot.py` — 那份快照背后的遍历与聚合（纯几何，**模块顶层不 import FreeCAD**，所以系统 Python 能给它做单测）：两遍平行轴累积、三级质心回退、带相对容差的张量有效性判据，以及每个未计入对象的明确理由。`principal_from_tensor()` 自带 3×3 Jacobi 特征分解（本包零第三方依赖）
+- `caddiff/perf_diff.py` — 快照→快照的纯算术（不碰 FreeCAD、不起子进程、不读文件）：体积/质心/惯量差值、中心位移的精确逐零件分摊，以及 `--density` 取值解析。**它不参与退出码判定**
 - `caddiff/render_diff.py` — 渲染+红框+品红高亮+新旧并排+方向标记带（FreeCAD Python，GUI 模式）。**`run()` 三阶段顺序是硬约束**（坑 A1）；`capture_and_project()` 保证截图与投影同源（坑 B1/B2）；`pick_best_direction()`/`score_direction()` 是整体图自动选向（坑 F1~F4）；`add_direction_banner()` 画方向标记带（坑 F5/F6）；`split_clusters()`/`project_clusters()`/`merge_rects()`/`draw_rects_on_image()` 是逐差异簇分别标框（坑 H1~H6）；`_place_label()`/`_leader_cost()`/`_region_emptiness()` 是圈号的框外引出线标注与落点实测选位（坑 H7/H8）；`render_moved_one()`/`draw_move_arrow()` 是位移类差异的渲染（坑 I2/I3）；`derive_label()` 推导版本标签；`write_manifest()` 原子落盘。输出目录由调用方传入（`caddiff diff` 传 `<out>/images`）
 - `caddiff/report.py` — 差异报告生成（系统 Python，纯标准库）：读 `diff_manifest.json` + 同目录 `images/render_manifest.json`（拿逐处差异的图片文件名与数值），出 `report.html` 与 `report.md`。**报告独立成模块、PPT 降为可选是决策 D-006**：HTML/Markdown 是默认产物，PR 里能直接贴 Markdown、浏览器里能直接看 HTML，而 PPT 要求读者装 PowerPoint。**刻意不引模板引擎**：报告是给人看的一次性产物，为它拉一个 Jinja2 依赖不划算，`html.escape` + f-string 足够。**不要读 `geom_diff.json` 重新推导结论**——那会让报告与 manifest 出现两套口径。**图片文件名必须百分号编码后才能进 Markdown 链接 / HTML `src`**（`_image_url()`）：文件名由零件名拼出，而空格在 CommonMark 的链接目的地里是**终止符**——不编码时 GitHub 把整行渲染成纯文本，图**静默消失**（没有 `<img>`、也不报错）。公开语料实测：186 张图的名字含空格、36 张含括号
 - `caddiff/build_pptx.py` — PPT 拼版（系统 Python）：标题条 + 三图横排 + 两栏结构化信息带 + 图例（版式约束见坑 G1~G7）。`cluster_size_lines()` 按簇列尺寸，圈号 `CIRCLED` 必须与 render_diff 一致（坑 H6）；按 `change_type` 分派 shape_changed / moved 两套版式；`build_empty_slide()` 出"未检出差异"说明页（含被跳过零件清单）；`--pptx` 时才被调用
-- `caddiff/run_pipeline.py` — 编排入口（`caddiff diff` 子命令的流水线实现），注意步骤 3 要传 `stp_old`+`stp_new` 两个路径。异常与超时会打印已产出的中间产物路径；渲染超时按差异数估算而非写死；`build_summary()` 把散落在多个 JSON 里的结论汇总进 `diff_manifest.json` 的 `summary` 块，供调用方单点消费（见 §9）
+- `caddiff/run_pipeline.py` — 编排入口（`caddiff diff` 子命令的流水线实现），注意**渲染步**要传 `stp_old`+`stp_new` 两个路径（它的步骤号在不开 `--perf` 时是 3、开了是 4）。异常与超时会打印已产出的中间产物路径；渲染超时按差异数估算而非写死；`build_summary()` 把散落在多个 JSON 里的结论汇总进 `diff_manifest.json` 的 `summary` 块，供调用方单点消费（见 §9）
 - `caddiff/cli.py` — 命令行入口（argparse）与**退出码契约的唯一实现处**：编排层失败一律抛 `PipelineError`，由这里翻译成 2，与"检出差异 = 1"严格分开（早先任何一步失败都 `sys.exit(1)`，于是"FreeCAD 崩了"和"两版真有差异"在 CI 里长得一模一样，闸门会放行本该拦下的提交、也会拦住本该放行的提交）；argparse 自身报错也是 2，与本契约一致
 - `caddiff/version.py` — 版本号**唯一出处**（`caddiff --version` 从这里读，`pyproject.toml` 用 `dynamic = ["version"]` + `version = { attr = "caddiff.version.__version__" }` 也从这里读）。**不要在别的文件里再写一遍版本号**——两处写必然漂移，而版本号漂移会让「镜像 tag ↔ 源码 tag ↔ 构建脚本一一对应」这条合规要求失效（镜像 tag 必须与源码 tag、`deploy/Dockerfile` 一一对应，见 [`../THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md)）
 - `caddiff/__init__.py` — 包入口。其 docstring 记录了**扁平 import 是刻意的**（`import fcenv` 而不是 `from . import fcenv`）：几何/渲染模块必须由 **FreeCAD 自带的解释器**以「独立脚本」方式启动，那个解释器里没有安装本包，相对 import 会直接失败；入口（`cli.py`）负责把包目录塞进 `sys.path`，让扁平 import 在「源码运行」与「pip 安装」两种形态下都成立

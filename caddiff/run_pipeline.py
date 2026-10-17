@@ -29,6 +29,7 @@ if SCRIPT_DIR not in sys.path:
 import console  # noqa: E402
 import fcenv  # noqa: E402
 import i18n  # noqa: E402
+import perf_diff  # noqa: E402  （纯逻辑：快照 → 性能差异；不在 FreeCAD 进程里跑）
 import report  # noqa: E402
 
 console.enable_utf8_output()
@@ -132,7 +133,8 @@ def estimate_render_timeout(geom_json, base=180, per_diff=60):
     return int(base + per_diff * max(n, 1))
 
 
-def build_summary(bom_json, geom_json, render_manifest, label_old="", label_new=""):
+def build_summary(bom_json, geom_json, render_manifest, label_old="", label_new="",
+                  perf_json=None):
     """把散落在多个 JSON 里的结论汇总成一份摘要，供调用方（CI / agent / LLM）直接消费。
 
     why：此前 diff_manifest.json 只有各产物的路径，调用方要回答「有没有差异、几处、
@@ -144,6 +146,9 @@ def build_summary(bom_json, geom_json, render_manifest, label_old="", label_new=
     会呈现为「0 处差异」——这是最危险的一类假阴性，CI 闸门据此会放行错误提交。
 
     这里只做汇总，不重新计算任何结论：全部字段都取自上游产物，避免「摘要与明细不一致」。
+
+    ``perf_json`` 给了才写 ``summary["performance_diff"]``（``--perf`` 关闭时传 None，
+    摘要与产物都零变化）。性能差异**不参与** ``has_differences`` —— 它永不翻转退出码。
     """
     summary = {
         "manifest_version": MANIFEST_VERSION,
@@ -234,19 +239,43 @@ def build_summary(bom_json, geom_json, render_manifest, label_old="", label_new=
         # 新增可选字段允许不改版本号（AGENTS.md §3.2）。几何空但 BOM 有差异时不写——
         # 那是 has_differences=True 的场景，写"无几何差异"会误导 JSON 消费者误读结论。
         summary["reason"] = i18n.t("summary.no_geometry_diff")
+
+    if perf_json is not None:
+        # 性能块的**全部**内容整体透传（含每版绝对值）：报告的唯一输入是 manifest
+        # （AGENTS.md §3.4 单一入口），少了绝对值报告就只能去读第二份文件、于是两套口径。
+        # 读不出来时写空 dict：键存在（说明本次开了 --perf）但没有数字，不静默假装没开。
+        try:
+            with open(perf_json, "r", encoding="utf-8") as f:
+                perf = json.load(f)
+        except (OSError, ValueError):
+            perf = {}
+        summary["performance_diff"] = perf
     return summary
 
 
 def run_diff(stp_old, stp_new, output_dir,
              label_old=None, label_new=None, lang=None,
              max_faces=None, boolean_timeout=None, skip_parts=None,
-             min_diff_pct=None, render_timeout=None, export_pptx=False):
+             min_diff_pct=None, render_timeout=None, export_pptx=False,
+             perf=False, perf_tol=None, perf_budget=None, density=None):
     """跑完整流水线，返回 diff_manifest 字典；失败抛 PipelineError。
 
     返回而不打印结论：退出码由调用方（cli.py）决定，本函数不 ``sys.exit``。
+
+    ``perf`` 打开时多一步「性能快照 + 性能差异」（Step 3/6），产物是
+    ``<out>/perf_snapshot.json`` 与 ``<out>/perf_diff.json``，并写进 summary 的
+    ``performance_diff`` 键。它**不参与**退出码判定：性能数字永不翻转 0→1。
     """
     if lang:
         i18n.set_lang(lang)
+    if not perf and (perf_tol is not None or perf_budget is not None
+                     or density is not None):
+        print("  NOTE: --perf-tol / --perf-budget / --density only apply together "
+              "with --perf — ignoring them")
+    if perf_tol is not None and perf_tol < 0.0:
+        raise PipelineError("--perf-tol must be non-negative")
+    if perf_budget is not None and perf_budget <= 0.0:
+        raise PipelineError("--perf-budget must be positive")
 
     stp_old = os.path.abspath(stp_old)
     stp_new = os.path.abspath(stp_new)
@@ -266,10 +295,16 @@ def run_diff(stp_old, stp_new, output_dir,
     render_manifest = os.path.join(image_dir, "render_manifest.json")
     pptx_out = os.path.join(output_dir, "compare.pptx")
     manifest_path = os.path.join(output_dir, "diff_manifest.json")
+    perf_snapshot_json = os.path.join(output_dir, "perf_snapshot.json")
+    perf_json = os.path.join(output_dir, "perf_diff.json")
     artifacts = [bom_json, geom_json, render_manifest]
 
+    # 步骤编号的分母跟着「本次真的会走几步」走：--perf 关闭时仍是 1/5~5/5（存量 CI 的
+    # 控制台日志一个字不变），打开时是 1/6~6/6（多出来的第 3 步就是性能取数）。
+    n_steps = 6 if perf else 5
+
     # Step 1: BOM diff（系统 Python，纯文本解析，不需要 FreeCAD）
-    run_step("Step 1/5: BOM diff",
+    run_step(f"Step 1/{n_steps}: BOM diff",
              [SYSTEM_PYTHON, os.path.join(SCRIPT_DIR, "bom_diff.py"),
               stp_old, stp_new, bom_json],
              artifacts=artifacts)
@@ -306,9 +341,39 @@ def run_diff(stp_old, stp_new, output_dir,
     if min_diff_pct is not None:
         geom_cmd += ["--min-diff-pct", str(min_diff_pct)]
     geom_cmd += ["--lang", i18n.get_lang()]
-    run_step("Step 2/5: geometric diff", geom_cmd, timeout=1800, artifacts=artifacts)
+    run_step(f"Step 2/{n_steps}: geometric diff", geom_cmd, timeout=1800, artifacts=artifacts)
 
-    # Step 3: 渲染截图（FreeCAD Python，需要 GUI / 虚拟显示）
+    # Step 3: 性能快照 + 性能差异（仅 --perf）
+    # 【为什么取数在独立子进程】与布尔运算同一个理由：病态 Shape 上的质量属性查询可能卡死，
+    # 只有子进程能被父进程 kill（见 perf_probe.py）。差异计算是纯算术，不碰几何，在本进程
+    # 算完直接落盘即可——它没有卡死的可能，也没有必要再付一次进程启动成本。
+    if perf:
+        budget_s = perf_budget if perf_budget is not None else perf_diff.DEFAULT_BUDGET_S
+        rel_tol = perf_tol if perf_tol is not None else perf_diff.DEFAULT_REL_TOL
+        # 探针自己会在 budget_s 处停下并如实记账，故父进程的死线只需再覆盖两版的导入开销。
+        probe_timeout = 2.0 * budget_s + perf_diff.PROBE_TIMEOUT_MARGIN_S
+        run_step(f"Step 3/{n_steps}: performance snapshot",
+                 [_fc_python(), os.path.join(SCRIPT_DIR, "perf_probe.py"),
+                  stp_old, stp_new, perf_snapshot_json, "--budget", str(budget_s)],
+                 timeout=probe_timeout,
+                 artifacts=artifacts + [perf_snapshot_json])
+        try:
+            with open(perf_snapshot_json, "r", encoding="utf-8") as f:
+                snapshots = json.load(f)
+        except (OSError, ValueError) as exc:
+            raise PipelineError(f"cannot read performance snapshot: {exc}") from exc
+        try:
+            perf_block = perf_diff.diff(snapshots.get("old") or {}, snapshots.get("new") or {},
+                                        rel_tol=rel_tol, density_kg_per_mm3=density,
+                                        budget=budget_s)
+        except (KeyError, TypeError, ValueError) as exc:
+            # 快照非法（NaN/缺字段）是执行失败，不是「没有性能差异」——必须给退出码 2。
+            raise PipelineError(f"performance diff failed: {exc}") from exc
+        with open(perf_json, "w", encoding="utf-8") as f:
+            json.dump(perf_block, f, ensure_ascii=False, indent=2)
+        print("  OK (performance block written)")
+
+    # Step 4: 渲染截图（FreeCAD Python，需要 GUI / 虚拟显示）
     # render_diff 需要新旧两个 STP：旧版用于现算差异几何体做颜色高亮，并渲染旧版同角度并排图。
     render_cmd = [_fc_python(), os.path.join(SCRIPT_DIR, "render_diff.py"),
                   geom_json, stp_old, stp_new, image_dir,
@@ -319,13 +384,14 @@ def run_diff(stp_old, stp_new, output_dir,
         render_cmd += ["--label-new", label_new]
     effective_render_timeout = (render_timeout if render_timeout is not None
                                 else estimate_render_timeout(geom_json))
-    run_step("Step 3/5: render diff images", render_cmd,
+    run_step(f"Step 4/{n_steps}: render diff images", render_cmd,
              timeout=effective_render_timeout, artifacts=artifacts)
 
-    # Step 4: 汇总 manifest + 报告（纯标准库，直接在本进程调用，不必起子进程）
+    # Step 5: 汇总 manifest + 报告（纯标准库，直接在本进程调用，不必起子进程）
     # 先写 diff_manifest.json（PPT 的汇总页要读它拿 skipped / unresolved / alignment），再生成 PPT。
     summary = build_summary(bom_json, geom_json, render_manifest,
-                            label_old or "", label_new or "")
+                            label_old or "", label_new or "",
+                            perf_json=perf_json if perf else None)
     # 渲染用的是哪条死线，必须落进 manifest：否则「这一步超时了」无法复现，
     # 也无法判断该调大估算还是真出了问题。估算/覆盖值都在这里显形。
     summary.setdefault("settings", {})["render_timeout_s"] = effective_render_timeout
@@ -343,12 +409,17 @@ def run_diff(stp_old, stp_new, output_dir,
         "pptx": pptx_out if export_pptx else None,
         "summary": summary,
     }
+    if perf:
+        # 只在开了 --perf 时才加这两个键：--perf 关闭时 diff_manifest.json 必须**逐字节
+        # 与旧版一致**（向外承诺的向后兼容），加一个值为 null 的键也是变化。
+        manifest["perf_snapshot"] = perf_snapshot_json
+        manifest["perf_diff"] = perf_json
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
     # 报告必须在 manifest 之后写：报告的唯一输入就是 manifest（避免两套口径）。
     print(f"\n{'=' * 60}")
-    print("  [Step 4/5: report]")
+    print(f"  [Step 5/{n_steps}: report]")
     print(f"{'=' * 60}")
     report_paths = report.generate(manifest_path, lang=i18n.get_lang())
     manifest["report_html"], manifest["report_md"] = report_paths
@@ -357,7 +428,7 @@ def run_diff(stp_old, stp_new, output_dir,
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
     if export_pptx:
-        run_step("Step 5/5: build PPTX",
+        run_step(f"Step 6/{n_steps}: build PPTX",
                  [SYSTEM_PYTHON, os.path.join(SCRIPT_DIR, "build_pptx.py"),
                   render_manifest, pptx_out, "--lang", i18n.get_lang()],
                  artifacts=artifacts)
@@ -388,7 +459,8 @@ def run_diff(stp_old, stp_new, output_dir,
 
 
 def main(argv=None):
-    """独立执行入口（等价于 ``caddiff diff``）。返回退出码。"""
+    """独立执行入口（等价于 ``caddiff diff``，但**不含** ``--perf`` 系列选项——性能摘要只在
+    CLI 上暴露，本入口走默认的关闭状态）。返回退出码。"""
     ap = argparse.ArgumentParser(
         description="Compare two STEP/STP assemblies and report what changed")
     ap.add_argument("stp_old")

@@ -248,6 +248,11 @@ Being explicit about the boundaries, because a tool that over-promises is worse 
 - **No tolerance analysis or GD&T.** `shape_changed` means "the boolean symmetric
   difference is non-empty", not "this is out of tolerance".
 - **No free-form surface deviation maps.** We compare solids, not point clouds.
+- **No material or density diff.** The optional performance summary (`--perf`) is volume-based:
+  solid volume, a volume-weighted centre, and volume inertia about the assembly centroid. A change
+  of material between revisions is not detectable (STEP files usually carry no material
+  information), and a mass figure is only produced when you pass a density you have confirmed
+  yourself (`--density`).
 - **No huge assemblies.** The render step is serial; a 55-part assembly already takes
   minutes. There is no upper bound enforced, but the experience degrades.
 - **Part pairing is heuristic.** Same-named parts are matched by bounding-box proximity

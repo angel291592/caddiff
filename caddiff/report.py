@@ -16,7 +16,8 @@ f-string 足够表达这里需要的全部结构。核心包因此保持零第�
 
 唯一输入是 ``diff_manifest.json``（机器契约，见 AGENTS.md §3）。同目录下读
 ``images/render_manifest.json`` 拿逐处差异的图片文件名与数值。**不要**去读
-``geom_diff.json`` 重新推导结论——那会让报告与 manifest 出现两套口径。
+``geom_diff.json`` 重新推导结论——那会让报告与 manifest 出现两套口径。性能节
+（``--perf``）的数字同理：全部来自 ``summary.performance_diff``，不读 ``perf_diff.json``。
 """
 import argparse
 import html
@@ -176,6 +177,16 @@ def _honesty_items(summary, t):
         items.append(f"**{_esc(ft.get('name'))}** — {filtered}")
     for note in summary.get("unresolved_notes") or []:
         items.append(f"**{_esc(note.get('base_name'))}** — {_esc(note.get('note'))}")
+    perf = summary.get("performance_diff") or {}
+    if perf:
+        # 性能数字的口径必须跟着结论一起给：只数了 n 个封闭实体、另有 m 个对象没计入，
+        # 不写这句读者就会把「没计入」读成「这些对象没有差异」（AGENTS.md §3.3）。
+        # 取新版（本次要评审的那一版）的计数。
+        side = perf.get("new") or {}
+        counted, not_counted = side.get("n_objects"), side.get("n_not_counted")
+        if (isinstance(counted, int) and isinstance(not_counted, int)
+                and (not_counted > 0 or counted == 0)):
+            items.append(_esc(t("report.perf.unavailable", n=counted, m=not_counted)))
     return items
 
 
@@ -192,6 +203,173 @@ def _reason_key(reason):
     if reason.startswith("worker_failed"):
         return "worker_failed"
     return "other"
+
+
+# ────────────────────────── 性能摘要（perf_diff.json） ──────────────────────────
+# 数据全部来自 manifest.summary.performance_diff —— 报告**不**去读 perf_diff.json /
+# perf_snapshot.json：那会让报告与 manifest 出现两套口径（AGENTS.md §3.4）。
+
+def _fmt_sig(value, digits=6):
+    """按有效数字格式化（mm⁵ 这类量级跨 1e3~1e9，定点写法会糊成一片）。"""
+    if value is None:
+        return None
+    try:
+        return f"{float(value):.{digits}g}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _fmt_signed(value, digits=3):
+    """带符号定点格式，用在位移分量上（正负号是这一节的关键信息）。"""
+    try:
+        return f"{float(value):+.{digits}f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _fmt_tensor6(t6):
+    """张量六分量 → ``xx=…, yy=…, zz=…, xy=…, xz=…, yz=…``（轴名是 locale-neutral 的）。"""
+    labels = ("xx", "yy", "zz", "xy", "xz", "yz")
+    return ", ".join(f"{name}={_fmt_sig(value)}" for name, value in zip(labels, t6))
+
+
+def _perf_rows(summary, t):
+    """性能节的 (标签, 值) 行。只列真实存在的量——缺的量写成 0 会被读成「算出来是 0」。"""
+    perf = summary.get("performance_diff") or {}
+    old = perf.get("old") or {}
+    new = perf.get("new") or {}
+    rows = []
+
+    volume_old, volume_new = old.get("total_volume_mm3"), new.get("total_volume_mm3")
+    if volume_old is not None and volume_new is not None:
+        value = f"{_fmt_num(volume_old, 3)} mm³ → {_fmt_num(volume_new, 3)} mm³"
+        mass_old, mass_new = perf.get("mass_kg_old"), perf.get("mass_kg_new")
+        if mass_old is not None and mass_new is not None:
+            # 质量只在调用方显式确认了密度时才有（见 --density）：没有确认过的密度，
+            # 一个 kg 都不出现。密度已确认时把它跟体积写在一起，读者才看得出两者同源。
+            value += f" · {_fmt_num(mass_old, 6)} kg → {_fmt_num(mass_new, 6)} kg"
+        rows.append((t("report.perf.total_volume"), value))
+
+    delta_volume = perf.get("delta_volume_mm3")
+    if delta_volume is not None:
+        value = f"{_fmt_num(delta_volume, 3)} mm³"
+        pct = perf.get("delta_volume_pct")
+        if pct is not None:
+            value += f" ({_fmt_num(pct, 2)} %)"
+        rows.append((t("report.perf.volume_change"), value))
+
+    shift = perf.get("centroid_shift_mm")
+    if shift is not None:
+        value = f"{_fmt_num(shift, 3)} mm"
+        components = perf.get("centroid_shift_components") or []
+        if len(components) == 3:
+            value += " (ΔX=%s, ΔY=%s, ΔZ=%s)" % tuple(_fmt_signed(c) for c in components)
+        rows.append((t("report.perf.centroid_shift"), value))
+
+    axis = perf.get("dominant_axis")
+    if axis:
+        rows.append((t("report.perf.dominant_axis"), axis))
+
+    inertia_old = old.get("inertia_about_centroid_6")
+    inertia_new = new.get("inertia_about_centroid_6")
+    if inertia_old and inertia_new:
+        rows.append((t("report.perf.inertia"),
+                     f"{_fmt_tensor6(inertia_old)} → {_fmt_tensor6(inertia_new)} mm⁵"))
+
+    moments_old = old.get("principal_moments")
+    moments_new = new.get("principal_moments")
+    if moments_old and moments_new:
+        left = ", ".join(_fmt_sig(v) for v in moments_old)
+        right = ", ".join(_fmt_sig(v) for v in moments_new)
+        rows.append((t("report.perf.principal_moments"), f"[{left}] → [{right}] mm⁵"))
+    return rows
+
+
+def _perf_contributors(summary):
+    perf = summary.get("performance_diff") or {}
+    out = []
+    for item in perf.get("contributors") or []:
+        d_mm = item.get("d_mm") or []
+        if len(d_mm) != 3:
+            continue
+        cells = ", ".join(_fmt_signed(v) for v in d_mm)
+        out.append((str(item.get("label") or "?"), f"({cells}) mm"))
+    return out
+
+
+def _perf_notes(summary, t):
+    """性能节的免责说明 —— **强制**文案，不是装饰。
+
+    体积变化 ≠ 质量变化、体积加权中心 ≠ 重心、体积惯量 ≠ 刚度、分摊 ≠ 排行；删掉任何
+    一句都会让读者把数字读成它并不代表的东西（与 docs/pipeline.md 的诚实性字段同一条铁律）。
+    """
+    perf = summary.get("performance_diff") or {}
+    settings = perf.get("settings") or {}
+    notes = []
+    if settings.get("density_source") != "cli":
+        notes.append(t("report.perf.no_density"))
+    notes.append(t("report.perf.not_centroid_of_gravity"))
+    notes.append(t("report.perf.not_stiffness"))
+    if perf.get("contributors"):
+        notes.append(t("report.perf.math_allocation"))
+    return notes
+
+
+def _perf_section_markdown(summary, t):
+    """性能节（Markdown）。没有 performance_diff 时整节不出现（--perf 关闭的路径）。"""
+    perf = summary.get("performance_diff")
+    if not perf:
+        return []
+    out = [f"## {t('report.section.performance')}", ""]
+    if not summary.get("has_differences"):
+        # 「无差异」结论旁的性能数字必须解释来源，否则读者会以为工具自相矛盾。
+        out.append(t("summary.performance_only_notice"))
+        out.append("")
+    for label, value in _perf_rows(summary, t):
+        out.append(f"- {label}: `{value}`")
+    contributors = _perf_contributors(summary)
+    if contributors:
+        out.append("")
+        out.append(f"- {t('report.perf.contributors')}:")
+        for label, value in contributors:
+            out.append(f"  - `{_esc(label)}` — `{value}`")
+    notes = _perf_notes(summary, t)
+    if notes:
+        out.append("")
+        for index, note in enumerate(notes):
+            if index:
+                out.append(">")
+            out.append(f"> {note}")
+    out.append("")
+    return out
+
+
+def _perf_section_html(summary, t):
+    perf = summary.get("performance_diff")
+    if not perf:
+        return []
+    out = [f"<h2>{_esc(t('report.section.performance'))}</h2>"]
+    if not summary.get("has_differences"):
+        out.append(f'<p class="sub">{_esc(t("summary.performance_only_notice"))}</p>')
+    rows = _perf_rows(summary, t)
+    if rows:
+        out.append("<table>")
+        for label, value in rows:
+            out.append(f"<tr><th>{_esc(label)}</th><td><code>{_esc(value)}</code></td></tr>")
+        out.append("</table>")
+    contributors = _perf_contributors(summary)
+    if contributors:
+        out.append(f"<p>{_esc(t('report.perf.contributors'))}</p><ul>")
+        for label, value in contributors:
+            out.append(f"<li><code>{_esc(label)}</code> — <code>{_esc(value)}</code></li>")
+        out.append("</ul>")
+    notes = _perf_notes(summary, t)
+    if notes:
+        out.append('<div class="sub">')
+        for note in notes:
+            out.append(f"<p>{_esc(note)}</p>")
+        out.append("</div>")
+    return out
 
 
 # ────────────────────────────── Markdown ──────────────────────────────
@@ -224,6 +402,11 @@ def render_markdown(manifest, entries, t):
     bom = _bom_section(s, t)
     if bom:
         out.extend(bom)
+        out.append("")
+
+    perf_section = _perf_section_markdown(s, t)
+    if perf_section:
+        out.extend(perf_section)
         out.append("")
 
     if entries:
@@ -350,6 +533,10 @@ def render_html(manifest, entries, t):
             p.append(f"<tr><td>{_esc(label)}</td><td>"
                      + ", ".join(f"<code>{_esc(x)}</code>" for x in items) + "</td></tr>")
         p.append("</table>")
+
+    perf_section = _perf_section_html(s, t)
+    if perf_section:
+        p.extend(perf_section)
 
     if entries:
         p.append(f"<h2>{_esc(t('report.section.changes'))}</h2>")

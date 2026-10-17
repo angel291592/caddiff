@@ -49,13 +49,20 @@ OLD.stp, NEW.stp
    │     → geom_diff.json (bbox in world coordinates / parent_chain / numeric volume fields /
    │                       change_type / skipped_parts / global_alignment / settings)
    │
-   ├─ [3] render_diff.py (FreeCAD Python, GUI mode)
+   ├─ [3] perf_probe.py (FreeCAD Python, its own killable process)   ← only with --perf
+   │     Import.insert each revision into its own document → per-part volume /
+   │     volume-weighted centroid / volume inertia about the assembly centroid
+   │     → perf_snapshot.json (raw numbers); then perf_diff.py (pure logic, no FreeCAD) compares
+   │       the two snapshots → perf_diff.json (deltas + the exact per-part allocation of the
+   │       centroid shift). Why each figure is what it is: see performance.md
+   │
+   ├─ [4] render_diff.py (FreeCAD Python, GUI mode)
    │     precompute → inject → render  ← the order is a hard constraint
    │     shape_changed emits 3 images (overview / new-revision closeup / old-revision closeup)
    │     moved emits 3 images (overview / new position / old position + translation arrow)
    │     → PNG (written into `<out>/images/`) + render_manifest.json (with magenta-pixel self-check counts; each diff is atomic-flushed to disk as soon as its render finishes)
    │
-   └─ [4] report assembly (system Python)
+   └─ [5] report assembly (system Python)
          writes diff_manifest.json first (machine contract, includes summary)
          dispatches the two layouts by change_type; an empty manifest emits the "no diffs detected" explanation page
          → report.html / report.md; with --pptx additionally → compare.pptx
@@ -93,21 +100,31 @@ caddiff diff examples/demo_old.stp examples/demo_new.stp -o caddiff-out
 #   --boolean-timeout 60            hard timeout seconds for a single boolean
 #   --skip-parts NAME1,NAME2        explicitly skip the named parts (exact match on base_name)
 #   --min-diff-pct 0.1              relative threshold: the diff must exceed this percentage of part volume (default 0 = disabled)
+#   --perf                          additionally report a volume-based performance summary (solid volume / volume-weighted centroid / volume inertia about the assembly centroid); off by default and it never changes the exit code (see performance.md)
+#   --perf-tol 1e-06                relative tolerance for the performance comparison, as a fraction of the assembly size
+#   --perf-budget 300               seconds of probing budget per revision; objects not reached are reported as not counted
+#   --density '7.85 g/cm3'          a material density you have confirmed (kg/mm3 / g/cm3 / kg/m3); without it no mass is computed at all
 #   --version / --help
 ```
 
-All artifacts land under `<out>`: `diff_manifest.json` (machine contract, includes `summary`), `report.html`, `report.md`, `images/*.png` (diff images), `images/render_manifest.json` (**the intermediate contract between the render module and the report module**: per-diff image filenames and pixel self-check counts; field contract in §8), plus the intermediate artifacts `bom_diff.json` and `geom_diff.json`; with `--pptx` there is additionally `compare.pptx`.
+All artifacts land under `<out>`: `diff_manifest.json` (machine contract, includes `summary`), `report.html`, `report.md`, `images/*.png` (diff images), `images/render_manifest.json` (**the intermediate contract between the render module and the report module**: per-diff image filenames and pixel self-check counts; field contract in §8), plus the intermediate artifacts `bom_diff.json` and `geom_diff.json`; with `--pptx` there is additionally `compare.pptx`, and with `--perf` additionally `perf_snapshot.json` + `perf_diff.json` (field contract and the reasoning behind every figure: [`performance.md`](performance.md)).
 
 Exit codes are an **outward contract** and can be used directly as a CI gate: `0` = the two revisions differ nowhere · `1` = diffs detected · `2` = execution failure (unreadable input / subprocess timeout or crash / internal error).
 
-Per-script arguments for step-by-step debugging (note that step 3 takes **4 arguments** — it needs both the old and the new STP):
+Per-script arguments for step-by-step debugging (note that the render step takes **4 arguments** — it needs both the old and the new STP; its step number is 3 without `--perf` and 4 with it):
 
 ```bash
 python caddiff/bom_diff.py <stp_old> <stp_new> <bom_diff.json>
 <FreeCAD>/bin/python.exe caddiff/geom_diff.py <bom_diff.json> <stp_old> <stp_new> <geom_diff.json>
+<FreeCAD>/bin/python.exe caddiff/perf_probe.py <stp_old> <stp_new> <perf_snapshot.json> [--budget 300]
 <FreeCAD>/bin/python.exe caddiff/render_diff.py <geom_diff.json> <stp_old> <stp_new> <images_dir>
 python caddiff/build_pptx.py <render_manifest.json> <compare.pptx>
 ```
+
+`perf_diff.py` is deliberately **not** a script: comparing two snapshots is pure arithmetic with no
+geometry involved, so the pipeline calls it in-process and a snapshot alone is enough to debug it
+(`python -c "import perf_diff, json; ..."`). Only the mass-property query has to be its own
+process — that is `perf_probe.py`.
 
 **Synthetic fixture (the only end-to-end path that exercises the `moved` branch)**: in the real STP all three diffs are `shape_changed`, so the `moved` branch cannot be reached on this assembly. Generate a pair of synthetic STPs with `make_moved_fixture.py` (SLIDER translated 5mm / BRACKET with 192mm³ removed / BASEPLATE unchanged) and verify:
 
@@ -378,6 +395,7 @@ Problems of the "code raises no error, output is wrong" kind cannot be located b
 - **BOM-layer rename drift (the main noise source measured on the gate1 corpus)**: when the same part is renamed across revisions (manual rename / exporter auto-names generated from timestamps / case-only differences), the BOM layer faithfully reports one added + one removed — this is the correct report for "the name really changed", not a fabrication; but the geometry layer cannot pair across names, so the tool cannot use shape evidence to fold both sides into a single "rename". Among the gate1 corpus's 24 pairs, 7 structurally unchanged revisions therefore reported diffs (all showing the added==removed symmetric signature; in the most extreme sample every product name was a timestamp, and the two revisions' 190 names were completely different). For a CI gate this is a known noise type — when reading results, first check whether the added/removed lists correspond symmetrically. v0.2 direction: shape-fingerprint matching between the two sides' candidates to fold a "rename" into one entry.
 - **Native crash on giant STEP (exit 2, honest failure)**: a 38.5MB STEP triggers a FreeCAD/OCCT native access violation in the `Import.insert` stage (measured on the gate1 corpus; the reproducing pair is recorded). A native crash cannot be caught at the Python layer and is **never folded into "no diff"** — exit code 2, and the caller handles it as "execution failure"; the same input crashes again on retry, so switch inputs or await root-cause isolation (file contents vs parser).
 - The circled-digit leader line's landing point is picked among eight candidate spots around the rectangle, with no global layout optimization. With many rectangles (>3) close together, later labels only avoid "overlapping already-placed labels" and do not backtrack or rearrange earlier ones, so an individual case with an unusually long leader line can appear. Measured: this assembly has at most 2 rectangles, and the case never arose.
+- **The performance summary (`--perf`) is volume-based only**: material/density changes are not covered (STEP files usually carry no material information), and a file that imports as a single object with no child objects is reported as one part — per-part attribution and the inertia tensor are then unavailable. Reasoning and the full list: [`performance.md`](performance.md) §8.
 
 ---
 
@@ -414,7 +432,7 @@ An empty manifest (`[]`) is not a failure: `diff_count=0` is a valid conclusion 
 
 ## 9. CLI Interface Boundaries (`caddiff diff` / `caddiff difftool`; callers must read)
 
-`caddiff diff` is the main entry: two STPs go in, and under `<out>` it produces `diff_manifest.json` (machine contract, includes `summary`) + `report.html` / `report.md` (human-readable report) + `images/*.png` (diff images); the intermediate artifacts `bom_diff.json` / `geom_diff.json` are kept, and with `--pptx` there is additionally `compare.pptx`. There is also the git-integration entry `caddiff difftool` (same options as `diff`, except `-o` defaults to a newly created temporary directory and the report path is printed): **it returns 0 even when differences are detected, and only 2 on execution failure** — `git difftool` treats a non-zero exit code from the tool as "external diff died" and aborts the whole diff, so `diff`, which must return 1 on detected diffs, cannot serve git; conversely **`difftool` must not be used as a CI gate** (it never returns non-zero because of detected diffs); in CI always use `caddiff diff`. For git-side configuration and usage see [`git-integration.md`](git-integration.md).
+`caddiff diff` is the main entry: two STPs go in, and under `<out>` it produces `diff_manifest.json` (machine contract, includes `summary`) + `report.html` / `report.md` (human-readable report) + `images/*.png` (diff images); the intermediate artifacts `bom_diff.json` / `geom_diff.json` are kept, with `--pptx` there is additionally `compare.pptx`, and with `--perf` additionally `perf_snapshot.json` / `perf_diff.json` (see [`performance.md`](performance.md)). There is also the git-integration entry `caddiff difftool` (same options as `diff`, except `-o` defaults to a newly created temporary directory and the report path is printed): **it returns 0 even when differences are detected, and only 2 on execution failure** — `git difftool` treats a non-zero exit code from the tool as "external diff died" and aborts the whole diff, so `diff`, which must return 1 on detected diffs, cannot serve git; conversely **`difftool` must not be used as a CI gate** (it never returns non-zero because of detected diffs); in CI always use `caddiff diff`. For git-side configuration and usage see [`git-integration.md`](git-integration.md).
 
 **Calling contract**
 ```bash
@@ -433,6 +451,15 @@ caddiff diff <OLD.stp> <NEW.stp> [options]
   --boolean-timeout S   hard timeout seconds for a single boolean (default 60)
   --min-diff-pct P      diff volume must exceed this percentage of part volume (default 0 = disabled)
   --skip-parts A,B      skip the named parts (exact match on base_name)
+  --perf                also report a volume-based performance summary (solid volume /
+                        volume-weighted centroid / volume inertia about the assembly centroid);
+                        off by default, and it never changes the exit code
+  --perf-tol T          relative tolerance for the performance comparison (default 1e-06 of the
+                        assembly size)
+  --perf-budget S       probing budget in seconds per revision (default 300); objects not reached
+                        are reported as not counted
+  --density SPEC        a density you have confirmed, e.g. '7.85 g/cm3' (kg/mm3 / g/cm3 / kg/m3);
+                        without it no mass is computed at all
   --version / --help
 ```
 
@@ -461,6 +488,11 @@ summary.total_candidates              number of candidate parts compared
 summary.settings                      the gate values actually in effect this run (for reproduction and tuning)
 summary.reason                        present only when has_differences=false;
                                       the valid-conclusion statement explaining "no differences between the two revisions"
+summary.performance_diff              present only with --perf; the whole performance block (deltas +
+                                      per-revision absolutes + contributors + settings). It never
+                                      affects has_differences / the exit code, and the report reads
+                                      it instead of opening perf_diff.json (field contract:
+                                      performance.md §5)
 ```
 
 **The three in-between `skipped/unresolved/filtered` groups are "honesty" fields: not surfacing them to the user amounts to teaching readers to equate "not mentioned" with "no diff".** Per-diff image paths and pixel self-check counts remain in `render_manifest.json`; read it only when attaching images or running checks.
@@ -482,10 +514,13 @@ summary.reason                        present only when has_differences=false;
 - `caddiff/bom_diff.py` — BOM diff (system Python; pure-text parsing of the STEP `PRODUCT` entities)
 - `caddiff/geom_diff.py` — geometric diff (FreeCAD Python, console mode). `classify_change()` is the three-way classification (identical/moved/shape_changed); `placement_delta()` computes translation and rotation; `symmetric_diff_isolated()` pushes the boolean into a subprocess with a hard timeout (pitfall I1); `check_global_alignment()` judges global alignment from paired parts' shift consistency (pitfall I4). Output includes `change_type`/`skipped_parts`/`filtered_by_threshold`/`global_alignment`/`settings`
 - `caddiff/boolean_worker.py` — boolean symmetric difference inside the subprocess (FreeCAD Python). **Must `import FreeCAD` before `import Part`**, otherwise a 0xC0000005 crash (pitfall I1)
+- `caddiff/perf_probe.py` — volume-based mass-property snapshot in its own killable subprocess (`--perf` only, FreeCAD Python): one temporary document per revision, then `perf_snapshot.snapshot()`. The traversal rule is **leaves only** — a container's Shape is a Compound and has no `MatrixOfInertia`, so taking it would lose per-part attribution and the whole tensor (measured on four real assemblies; see [`performance.md`](performance.md) §3)
+- `caddiff/perf_snapshot.py` — the traversal and the aggregation behind that snapshot (pure geometry, **no FreeCAD import at module level**, so the system Python can unit-test it): two-pass parallel-axis accumulation, the three-level centroid fallback, tensor validity with a relative slack, and an explicit reason for every object that was not counted. `principal_from_tensor()` owns the 3×3 Jacobi eigen-decomposition (the package has zero third-party dependencies)
+- `caddiff/perf_diff.py` — snapshot → snapshot pure arithmetic (no FreeCAD, no subprocess, no file I/O): volume/centroid/inertia deltas, the exact per-part allocation of the centroid shift, and the `--density` spec parser. **It never votes on the exit code**
 - `caddiff/render_diff.py` — render + red rectangles + magenta highlight + old/new side-by-side + direction banner (FreeCAD Python, GUI mode). **The three-phase order of `run()` is a hard constraint** (pitfall A1); `capture_and_project()` guarantees screenshot and projection share one source (pitfalls B1/B2); `pick_best_direction()`/`score_direction()` are the overview's automatic viewpoint selection (pitfalls F1~F4); `add_direction_banner()` draws the direction banner (pitfalls F5/F6); `split_clusters()`/`project_clusters()`/`merge_rects()`/`draw_rects_on_image()` are the per-diff-cluster rectangle framing (pitfalls H1~H6); `_place_label()`/`_leader_cost()`/`_region_emptiness()` are the outside-rectangle circled-digit leader-line annotation with measured landing-point selection (pitfalls H7/H8); `render_moved_one()`/`draw_move_arrow()` render translation-type diffs (pitfalls I2/I3); `derive_label()` derives version labels; `write_manifest()` atomically flushes to disk. The output directory is passed in by the caller (`caddiff diff` passes `<out>/images`)
 - `caddiff/report.py` — diff report generation (system Python, pure standard library): reads `diff_manifest.json` plus the sibling `images/render_manifest.json` (to get per-diff image filenames and numbers), emits `report.html` and `report.md`. **The report being a standalone module and the PPT becoming optional is decision D-006**: HTML/Markdown are the default artifacts — Markdown pastes directly into a PR and HTML reads directly in a browser, while PPT requires readers to install PowerPoint. **Deliberately no template engine**: the report is a one-shot artifact for humans; pulling in a Jinja2 dependency for it is not worth it — `html.escape` + f-strings suffice. **Do not read `geom_diff.json` to re-derive conclusions** — that would give the report and the manifest two separate versions of the truth. **Image filenames must be percent-encoded before they go into a Markdown link or an HTML `src`** (`_image_url()`): the filename is built from the part name, and a space is a **terminator** in a CommonMark link destination — unencoded, GitHub renders the whole line as plain text, so the image silently disappears (no `<img>`, no error). Measured on the public corpus: 186 image names contained spaces and 36 contained parentheses
 - `caddiff/build_pptx.py` — PPT assembly (system Python): title bar + three images in a row + two-column structured info band + legend (layout constraints in pitfalls G1~G7). `cluster_size_lines()` lists sizes per cluster; the circled digits `CIRCLED` must match render_diff (pitfall H6); dispatches the shape_changed / moved layouts by `change_type`; `build_empty_slide()` produces the "no diffs detected" explanation page (including the skipped-parts list); invoked only with `--pptx`
-- `caddiff/run_pipeline.py` — orchestration entry (the pipeline behind the `caddiff diff` subcommand); note that step 3 takes both `stp_old`+`stp_new` paths. Exceptions and timeouts print the paths of the intermediates already produced; rendering timeouts are estimated from the diff count rather than hard-coded; `build_summary()` aggregates the conclusions scattered across several JSONs into the `summary` block of `diff_manifest.json` for single-point consumption by callers (see §9)
+- `caddiff/run_pipeline.py` — orchestration entry (the pipeline behind the `caddiff diff` subcommand); note that the render step takes both `stp_old`+`stp_new` paths (its step number is 3 without `--perf`, 4 with it). Exceptions and timeouts print the paths of the intermediates already produced; rendering timeouts are estimated from the diff count rather than hard-coded; `build_summary()` aggregates the conclusions scattered across several JSONs into the `summary` block of `diff_manifest.json` for single-point consumption by callers (see §9)
 - `caddiff/cli.py` — the command-line entry (argparse) and **the sole implementation site of the exit-code contract**: orchestration-layer failures always raise `PipelineError`, translated here into 2, strictly separated from "diffs detected = 1" (previously any failing step did `sys.exit(1)`, so "FreeCAD crashed" and "the two revisions genuinely differ" looked identical in CI — the gate would pass commits it should have blocked and block commits it should have passed); argparse's own errors are also 2, consistent with this contract
 - `caddiff/version.py` — the **single source of the version number** (`caddiff --version` reads from here; `pyproject.toml` uses `dynamic = ["version"]` + `version = { attr = "caddiff.version.__version__" }` and reads from here too). **Do not write the version number into any other file** — duplicate copies inevitably drift, and version drift breaks the compliance requirement "image tag ↔ source tag ↔ build script correspondence" (the image tag must correspond one-to-one with the source tag and `deploy/Dockerfile`; see [`../THIRD_PARTY_LICENSES.md`](../THIRD_PARTY_LICENSES.md))
 - `caddiff/__init__.py` — package entry. Its docstring records that **flat imports are deliberate** (`import fcenv`, not `from . import fcenv`): the geometry/rendering modules must be launched by the **FreeCAD-bundled interpreter** as "standalone scripts"; that interpreter does not have this package installed, so relative imports would fail immediately; the entry (`cli.py`) is responsible for putting the package directory onto `sys.path`, so flat imports work both when "running from source" and when "pip-installed"
