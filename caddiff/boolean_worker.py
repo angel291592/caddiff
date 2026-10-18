@@ -16,11 +16,8 @@ PART-B 那种 2MB 的 BREP 导出也只要 0.55s。
 用法（由 geom_diff.py 调用，不单独使用）：
     <FreeCAD>\bin\python.exe boolean_worker.py <fc_bin> <fc_lib> <old.brep> <new.brep> <out.json>
 """
-import json
-import math
 import os
 import sys
-import time
 
 
 def main():
@@ -36,6 +33,11 @@ def main():
 
     import FreeCAD  # noqa: F401  必须先于 Part，见模块说明
     import Part
+
+    # FreeCAD 26 的 import 会清掉 __main__ 里先前绑定的模块名，所以这些 import 放在它之后。
+    import json
+    import math
+    import time
 
     t0 = time.time()
     old_shape = Part.Shape()

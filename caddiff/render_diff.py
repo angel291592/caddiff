@@ -22,22 +22,14 @@ run() 严格分三阶段：预算(precompute) -> 注入(inject) -> 渲染(render
 按"品红可见性 × 画面可读性"综合评分自动选最优（见 pick_best_direction / score_direction）。
 因此三张图不再同视角，每张图顶部都加了方向标记带（add_direction_banner）说明各自视角。
 """
-import json
-import sys
 import os
-import time
-from collections import defaultdict
+import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-import console  # noqa: E402
 import fcenv  # noqa: E402  （路径解析的唯一真相源，必须先于 import FreeCAD）
-import i18n  # noqa: E402
-from i18n import t  # noqa: E402
-
-console.enable_utf8_output()
 
 # FreeCAD 模块的 bin/lib 由解释器自身位置推导；找不到就不注入（Linux 在系统 site-packages 里）。
 fcenv.inject_freecad_paths()
@@ -46,6 +38,18 @@ import FreeCAD  # noqa: E402
 import FreeCADGui  # noqa: E402
 import Import  # noqa: E402
 from FreeCAD import Vector  # noqa: E402
+
+# FreeCAD 26 的 import 会清掉 __main__ 里先前绑定的模块名，所以其余 import 必须放在它之后。
+import json  # noqa: E402
+import time  # noqa: E402
+from collections import defaultdict  # noqa: E402
+
+import console  # noqa: E402
+import fcenv  # noqa: E402
+import i18n  # noqa: E402
+from i18n import t  # noqa: E402
+
+console.enable_utf8_output()
 
 # 渲染参数
 # 注：FreeCAD 3D视口widget的原生像素尺寸是固定的（约603x450，不随主窗口resize/maximize变化），
@@ -1896,4 +1900,7 @@ def main(argv=None):
 
 if __name__ == "__main__":
     main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
 

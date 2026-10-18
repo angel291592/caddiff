@@ -6,32 +6,36 @@ r"""
     <FreeCAD>\bin\python.exe geom_diff.py <bom_diff.json> <stp_old> <stp_new> <out_json>
         [--max-faces N] [--boolean-timeout S] [--skip-parts A,B] [--min-diff-pct P]
 """
-import argparse
-import json
-import math
-import shutil
-import subprocess
-import sys
 import os
-import tempfile
-import time as _time
-from collections import defaultdict
+import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-import console  # noqa: E402
 import fcenv  # noqa: E402  （路径解析的唯一真相源，必须先于 import FreeCAD）
-import i18n  # noqa: E402
-
-console.enable_utf8_output()
 
 # FreeCAD 模块的 bin/lib 由解释器自身位置推导；找不到就不注入（Linux 在系统 site-packages 里）。
 FC_BIN, FC_LIB = fcenv.inject_freecad_paths()
 
 import FreeCAD  # noqa: E402
 import Import  # noqa: E402
+
+# FreeCAD 26 的 import 会清掉 __main__ 里先前绑定的模块名，所以其余 import 必须放在它之后。
+import argparse  # noqa: E402
+import json  # noqa: E402
+import math  # noqa: E402
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+import tempfile  # noqa: E402
+import time as _time  # noqa: E402
+from collections import defaultdict  # noqa: E402
+
+import console  # noqa: E402
+import fcenv  # noqa: E402
+import i18n  # noqa: E402
+
+console.enable_utf8_output()
 
 VOLUME_THRESHOLD = 0.001
 VOLUME_TOLERANCE = 0.01
