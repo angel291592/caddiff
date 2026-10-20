@@ -22,6 +22,18 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.4.1](https://github.com/angel291592/caddiff/compare/v0.4.0...v0.4.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **boolean_worker:** restore the structured error output v0.4.0 dropped ([abffb44](https://github.com/angel291592/caddiff/commit/abffb4402f957d4621f920b6005b5ddbe14b5d29))
+
+
+### Documentation
+
+* **release:** bump the pinned image/action tags to v0.4.0 ([1a94acd](https://github.com/angel291592/caddiff/commit/1a94acd4d71b779489387d11f9b1856d10cc35cc))
+
 ## [0.4.0](https://github.com/angel291592/caddiff/compare/v0.3.7...v0.4.0) (2026-10-20)
 
 
