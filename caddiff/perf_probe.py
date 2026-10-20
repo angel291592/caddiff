@@ -13,27 +13,30 @@ r"""性能快照探针 —— 只在 FreeCAD 解释器的**独立子进程**里�
 
 失败即非零退出，由父进程的 ``run_step`` 转成 PipelineError → 退出码 2（既有契约，不新增语义）。
 """
-import argparse
-import json
 import os
 import sys
-import time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-import console  # noqa: E402
 import fcenv  # noqa: E402  （路径解析的唯一真相源，必须先于 import FreeCAD）
 
-console.enable_utf8_output()
-
+# FreeCAD 模块的 bin/lib 由解释器自身位置推导；找不到就不注入（Linux 在系统 site-packages 里）。
 fcenv.inject_freecad_paths()
 
 import FreeCAD  # noqa: E402
 import Import  # noqa: E402
 
+# FreeCAD 26 的 import 会清掉 __main__ 里先前绑定的模块名，所以其余 import 必须放在它之后（坑 K1）。
+import argparse  # noqa: E402
+import json  # noqa: E402
+import time  # noqa: E402
+
+import console  # noqa: E402
 import perf_snapshot  # noqa: E402
+
+console.enable_utf8_output()
 
 
 def snapshot_side(path, side, budget_s):

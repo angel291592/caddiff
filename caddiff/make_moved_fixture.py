@@ -13,15 +13,18 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import fcenv  # noqa: E402  （路径解析的唯一真相源，必须先于 import FreeCAD）
-import console  # noqa: E402
 
-console.enable_utf8_output()
-
+# FreeCAD 模块的 bin/lib 由解释器自身位置推导；找不到就不注入（Linux 在系统 site-packages 里）。
 fcenv.inject_freecad_paths()
 
 import FreeCAD  # noqa: E402
 import Import  # noqa: E402
 import Part  # noqa: E402
+
+# FreeCAD 26 的 import 会清掉 __main__ 里先前绑定的模块名，所以其余 import 必须放在它之后（坑 K1）。
+import console  # noqa: E402
+
+console.enable_utf8_output()
 
 
 def build(doc, shift_mm, shrink):
