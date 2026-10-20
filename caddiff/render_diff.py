@@ -1899,12 +1899,14 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    main()
+    exit_code = main()
     # FreeCAD 26.3 在解释器退出阶段（Gui::View3DInventor 析构）崩溃，会把「产物已全部写盘」的成功
     # 运行变成非零退出、进而让流水线报 exit 2。这里主动跳过 teardown：main() 返回前产物已关闭落盘
     # （render_manifest.json 走临时文件 + 原子替换），抛出异常/run() 里的 sys.exit 都不会走到这里。
     # 不要改成 try/except 包 teardown：崩溃发生在 Python 层之下的 GUI 关闭过程，没有异常可捕（坑 K2）。
     sys.stdout.flush()
     sys.stderr.flush()
-    os._exit(0)
+    # 跳过 teardown 不等于跳过退出码契约：main() 现在恒返回 None（→ 0），但将来若改成返回
+    # 非零，必须原样带出去；把这里写死成 0 就等于把一次失败伪装成成功。
+    os._exit(0 if exit_code is None else int(exit_code))
 
