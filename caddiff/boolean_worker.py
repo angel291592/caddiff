@@ -100,6 +100,11 @@ if __name__ == "__main__":
         # 否则父进程只看到非零 returncode，无法区分"几何算不出来"与"进程被 kill"。
         if len(sys.argv) == 6:
             try:
+                # 这里必须**就地** import json：FreeCAD 26 会清掉 `__main__` 里在
+                # `import FreeCAD` 之前绑定的模块级名字（坑 K1），所以 json 已随 main()
+                # 变成局部名字；本处理器在模块级作用域，用全局名会自己抛 NameError，
+                # 把 out.json 留成 0 字节、父进程只剩下 worker_crashed(rc=1)。
+                import json
                 with open(sys.argv[5], "w", encoding="utf-8") as f:
                     json.dump({"ok": False, "error": "%s: %s"
                                % (type(exc).__name__, exc)}, f, ensure_ascii=False)
