@@ -72,11 +72,15 @@ The system `python3` + `PYTHONPATH` above is what works, and it is how the Docke
 configured (see [`docs/pipeline.md`](https://github.com/angel291592/caddiff/blob/main/docs/pipeline.md)).
 
 On Ubuntu 24.04 the stock archive has no `freecad` package, so add the FreeCAD PPA first.
-Rendering needs a display, and Xvfb provides one on a headless machine:
+Rendering needs a display, and Xvfb provides one on a headless machine. `x11-utils` is **not**
+optional there: `xvfb-run` polls `xdpyinfo` to wait for the server, and without it the command
+hangs before Python ever starts (which is why [`deploy/Dockerfile`](deploy/Dockerfile) installs
+that package explicitly):
 
 ```console
+$ sudo apt install -y software-properties-common   # provides add-apt-repository on minimal images
 $ sudo add-apt-repository -y ppa:freecad-maintainers/freecad-stable
-$ sudo apt install -y freecad xvfb python3-venv
+$ sudo apt install -y freecad xvfb x11-utils python3-venv
 $ xvfb-run -a caddiff diff old.stp new.stp -o report
 ```
 

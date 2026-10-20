@@ -69,6 +69,18 @@ Linux 上**不要**把 `FREECAD_PYTHON` 指向 `.../freecad/bin/freecad-python3`
 FreeCAD 的 **GUI 应用**，把脚本交给它会启动界面并**永不返回**。上面这套「系统 `python3` +
 `PYTHONPATH`」才是能用的写法，Docker 镜像也是这么配的（见 [`docs/pipeline.md`](https://github.com/angel291592/caddiff/blob/main/docs/pipeline.md)）。
 
+Ubuntu 24.04 的官方软件源里没有 `freecad` 包，需要先加 FreeCAD 的 PPA。渲染要有显示环境，
+无显示器的机器用 Xvfb 提供。其中 `x11-utils` **不是可选项**：`xvfb-run` 靠 `xdpyinfo`
+轮询等待 X server 就绪，缺了它命令会一直卡住、Python 根本没机会启动（所以
+[`deploy/Dockerfile`](deploy/Dockerfile) 里也是显式安装的）：
+
+```console
+$ sudo apt install -y software-properties-common   # 精简镜像里 add-apt-repository 由它提供
+$ sudo add-apt-repository -y ppa:freecad-maintainers/freecad-stable
+$ sudo apt install -y freecad xvfb x11-utils python3-venv
+$ xvfb-run -a caddiff diff old.stp new.stp -o report
+```
+
 如果 `FREECAD_PYTHON` 未设置，`caddiff` 会搜索常见的 Linux 位置和 `PATH`，
 找不到时会**带着可操作的提示失败**，而不是静默回退到一个
 import 不了 FreeCAD 的 Python。
