@@ -77,6 +77,8 @@ OLD.stp, NEW.stp
 
 `deploy/Dockerfile` 把这条约束钉成了构建期断言，且断言的不只是 `-c` 能 import，还包括**脚本文件**能执行、以及虚拟显示下能取到 `ActiveView`——前一条正是用来拦住上面那个坑的（`freecad-python3` 能过 `-c`，但过不了「执行脚本文件」）。
 
+**FreeCAD 26 前向兼容（import 顺序是承重的，不是可以整理掉的坏味道）**：在 FreeCAD 26.3.0（conda-forge `freecad=2026.09.16`、Python 3.11、Ubuntu 24.04）上实测——以脚本方式执行（`__main__`）时 `import FreeCAD` 会清掉此前绑定的模块级名字（`os`、`sys` 幸存），于是旧顺序在 `FC_BIN, FC_LIB = fcenv.derive_bin_lib(FC_PYTHON)` 处报 `NameError: name 'fcenv' is not defined`，流水线在写出 `diff_manifest.json` 之前就退出 `2`。`geom_diff.py`、`render_diff.py`、`boolean_worker.py` 因此把所有其余模块放到 `import FreeCAD` **之后**绑定；那些带 `# noqa: E402` 的再导入块就是这条约束，**不要**把它们「整理」回文件顶部。FreeCAD 0.21（镜像）从不暴露这个问题，所以由 `tests/unit/test_freecad26_compat.py` 在不依赖 FreeCAD 的情况下钉住顺序。同一版本还会在图片与 `render_manifest.json` **已经落盘之后**、于 `Gui::View3DInventor` 的 teardown 崩溃；`render_diff.py` 因此在 `main()` 返回后立刻 flush stdout/stderr 并 `os._exit(0)` 跳过该 teardown——抛异常的路径仍然非零退出，且所有产物在该点之前已在 `run()` 内关闭。这条只是前向兼容：0.21 下行为不变。
+
 ---
 
 ## 3. 运行方式
@@ -358,6 +360,19 @@ why 只在体积差超容差时降级：纯 bbox 变化（如旋转）没有体�
 
 ---
 
+### K. FreeCAD 26 的向前兼容（2026-10-18）
+
+只在 FreeCAD 26.x 上复现。镜像基线 FreeCAD 0.21（决策 D-022）与 1.1.3 不受影响，容器路径零改动；这条只针对用户用 `FREECAD_PYTHON` 接入 26.x 解释器的情况。
+
+**K1. 26.x 上，脚本以 `__main__` 方式运行且 `import FreeCAD` 时，会清掉在此之前绑定的模块级名字——之后第一次使用就抛 `NameError`，该步骤非零退出，一个产物都不写。**
+报告者在 26.3.0（conda-forge，Python 3.11）实测：`geom_diff.py` 死在 `FC_BIN, FC_LIB = fcenv.derive_bin_lib(...)`，报 `NameError: name 'fcenv' is not defined`；只有 `os` / `sys` 这两个名字存活。`render_diff.py`、`boolean_worker.py`、`perf_probe.py` 原来都是同样的顺序。**规则：凡由 FreeCAD 解释器以独立脚本方式启动的模块，`import FreeCAD`（及按需的 `Part` / `Import` / `FreeCADGui`）必须排在其余所有 import 之前。** `fcenv` 是唯一必须留在它前面的例外（负责注入 FreeCAD 的 bin/lib 路径），所以 FreeCAD 之后要再 import 一次；`os` / `sys` 存活，不必重复。
+为什么容易漏：代码读起来完全正常，而且每个名字**静态上确实绑定了**——清空发生在运行时、FreeCAD 自己的 import 里，任何 linter 都看不见。规则已由 `tests/unit/test_freecad_import_order.py` 钉住：它解析这五个由 FreeCAD 启动的脚本（不需要 FreeCAD），只要出现「在 `import FreeCAD` 之前绑定、之后仍被读取、且之后没有再绑定」的模块级名字就失败。
+
+**K2. 26.3 上，`render_diff.py` 在图片与 `render_manifest.json` 都已写完之后，于 `Gui::View3DInventor` 析构阶段崩溃——步骤非零退出，流水线把一次实际成功的运行报成 exit 2。**
+修法：`main()` 返回后 flush stdout/stderr 并 `os._exit(0)`。对本 CLI 而言跳过 `atexit` / 解释器 teardown 是安全的：所有产物在返回前都已关闭（`render_manifest.json` 走临时文件 + 原子替换）；抛异常时仍然非零退出，`run()` 内部 `sys.exit(EXIT_BLANK_PANEL)` 也照常传导。**不要改成用 `try/except` 包住 teardown**：崩溃发生在 Python 层之下的 GUI 关闭过程，没有异常可捕。
+
+---
+
 ## 6. 排查方法论（比结论更值得复用）
 
 这类"代码不报错、产物是错的"问题，靠读代码和目视截图都定位不了。本项目验证有效的手段：
@@ -500,12 +515,12 @@ summary.performance_diff              仅 --perf 时出现；整块性能结果�
 ## 10. 涉及文件
 
 - `caddiff/bom_diff.py` — BOM 差异（系统 Python，纯文本解析 STEP 的 PRODUCT 实体）
-- `caddiff/geom_diff.py` — 几何差异（FreeCAD Python，console 模式）。`classify_change()` 三态分类（identical/moved/shape_changed）；`placement_delta()` 算位移与旋转；`symmetric_diff_isolated()` 把布尔丢进子进程并硬超时（坑 I1）；`check_global_alignment()` 由已配对零件的位移一致性判整体配准（坑 I4）。产出含 `change_type`/`skipped_parts`/`filtered_by_threshold`/`global_alignment`/`settings`
-- `caddiff/boolean_worker.py` — 子进程里做布尔对称差（FreeCAD Python）。**必须先 import FreeCAD 再 import Part**，否则 0xC0000005 崩溃（坑 I1）
-- `caddiff/perf_probe.py` — 体积类质量属性快照，跑在独立可 kill 的子进程里（仅 `--perf`，FreeCAD Python）：两版各开一个临时文档，再调 `perf_snapshot.snapshot()`。遍历规则是**只加叶子**——容器的 Shape 是 Compound、没有 `MatrixOfInertia`，取容器会让逐零件归因与整个张量一起消失（四份真实装配体实测，见 [`performance.zh-CN.md`](performance.zh-CN.md) §3）
+- `caddiff/geom_diff.py` — 几何差异（FreeCAD Python，console 模式）。`classify_change()` 三态分类（identical/moved/shape_changed）；`placement_delta()` 算位移与旋转；`symmetric_diff_isolated()` 把布尔丢进子进程并硬超时（坑 I1）；`check_global_alignment()` 由已配对零件的位移一致性判整体配准（坑 I4）。产出含 `change_type`/`skipped_parts`/`filtered_by_threshold`/`global_alignment`/`settings`。**import 顺序遵循坑 K1**：除 `fcenv` 外一切 import 都在 FreeCAD 之后
+- `caddiff/boolean_worker.py` — 子进程里做布尔对称差（FreeCAD Python）。**必须先 import FreeCAD 再 import Part**，否则 0xC0000005 崩溃（坑 I1）；**import 顺序同样遵循坑 K1**
+- `caddiff/perf_probe.py` — 体积类质量属性快照，跑在独立可 kill 的子进程里（仅 `--perf`，FreeCAD Python）：两版各开一个临时文档，再调 `perf_snapshot.snapshot()`。遍历规则是**只加叶子**——容器的 Shape 是 Compound、没有 `MatrixOfInertia`，取容器会让逐零件归因与整个张量一起消失（四份真实装配体实测，见 [`performance.zh-CN.md`](performance.zh-CN.md) §3）。**import 顺序遵循坑 K1**
 - `caddiff/perf_snapshot.py` — 那份快照背后的遍历与聚合（纯几何，**模块顶层不 import FreeCAD**，所以系统 Python 能给它做单测）：两遍平行轴累积、三级质心回退、带相对容差的张量有效性判据，以及每个未计入对象的明确理由。`principal_from_tensor()` 自带 3×3 Jacobi 特征分解（本包零第三方依赖）
 - `caddiff/perf_diff.py` — 快照→快照的纯算术（不碰 FreeCAD、不起子进程、不读文件）：体积/质心/惯量差值、中心位移的精确逐零件分摊，以及 `--density` 取值解析。**它不参与退出码判定**
-- `caddiff/render_diff.py` — 渲染+红框+品红高亮+新旧并排+方向标记带（FreeCAD Python，GUI 模式）。**`run()` 三阶段顺序是硬约束**（坑 A1）；`capture_and_project()` 保证截图与投影同源（坑 B1/B2）；`pick_best_direction()`/`score_direction()` 是整体图自动选向（坑 F1~F4）；`add_direction_banner()` 画方向标记带（坑 F5/F6）；`split_clusters()`/`project_clusters()`/`merge_rects()`/`draw_rects_on_image()` 是逐差异簇分别标框（坑 H1~H6）；`_place_label()`/`_leader_cost()`/`_region_emptiness()` 是圈号的框外引出线标注与落点实测选位（坑 H7/H8）；`render_moved_one()`/`draw_move_arrow()` 是位移类差异的渲染（坑 I2/I3）；`derive_label()` 推导版本标签；`write_manifest()` 原子落盘。输出目录由调用方传入（`caddiff diff` 传 `<out>/images`）
+- `caddiff/render_diff.py` — 渲染+红框+品红高亮+新旧并排+方向标记带（FreeCAD Python，GUI 模式）。**`run()` 三阶段顺序是硬约束**（坑 A1）；`capture_and_project()` 保证截图与投影同源（坑 B1/B2）；`pick_best_direction()`/`score_direction()` 是整体图自动选向（坑 F1~F4）；`add_direction_banner()` 画方向标记带（坑 F5/F6）；`split_clusters()`/`project_clusters()`/`merge_rects()`/`draw_rects_on_image()` 是逐差异簇分别标框（坑 H1~H6）；`_place_label()`/`_leader_cost()`/`_region_emptiness()` 是圈号的框外引出线标注与落点实测选位（坑 H7/H8）；`render_moved_one()`/`draw_move_arrow()` 是位移类差异的渲染（坑 I2/I3）；`derive_label()` 推导版本标签；`write_manifest()` 原子落盘。输出目录由调用方传入（`caddiff diff` 传 `<out>/images`）。**import 顺序遵循坑 K1；`os._exit(0)` 退出路径见坑 K2**
 - `caddiff/report.py` — 差异报告生成（系统 Python，纯标准库）：读 `diff_manifest.json` + 同目录 `images/render_manifest.json`（拿逐处差异的图片文件名与数值），出 `report.html` 与 `report.md`。**报告独立成模块、PPT 降为可选是决策 D-006**：HTML/Markdown 是默认产物，PR 里能直接贴 Markdown、浏览器里能直接看 HTML，而 PPT 要求读者装 PowerPoint。**刻意不引模板引擎**：报告是给人看的一次性产物，为它拉一个 Jinja2 依赖不划算，`html.escape` + f-string 足够。**不要读 `geom_diff.json` 重新推导结论**——那会让报告与 manifest 出现两套口径。**图片文件名必须百分号编码后才能进 Markdown 链接 / HTML `src`**（`_image_url()`）：文件名由零件名拼出，而空格在 CommonMark 的链接目的地里是**终止符**——不编码时 GitHub 把整行渲染成纯文本，图**静默消失**（没有 `<img>`、也不报错）。公开语料实测：186 张图的名字含空格、36 张含括号
 - `caddiff/build_pptx.py` — PPT 拼版（系统 Python）：标题条 + 三图横排 + 两栏结构化信息带 + 图例（版式约束见坑 G1~G7）。`cluster_size_lines()` 按簇列尺寸，圈号 `CIRCLED` 必须与 render_diff 一致（坑 H6）；按 `change_type` 分派 shape_changed / moved 两套版式；`build_empty_slide()` 出"未检出差异"说明页（含被跳过零件清单）；`--pptx` 时才被调用
 - `caddiff/run_pipeline.py` — 编排入口（`caddiff diff` 子命令的流水线实现），注意**渲染步**要传 `stp_old`+`stp_new` 两个路径（它的步骤号在不开 `--perf` 时是 3、开了是 4）。异常与超时会打印已产出的中间产物路径；渲染超时按差异数估算而非写死；`build_summary()` 把散落在多个 JSON 里的结论汇总进 `diff_manifest.json` 的 `summary` 块，供调用方单点消费（见 §9）
