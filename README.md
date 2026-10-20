@@ -71,6 +71,15 @@ is the FreeCAD **GUI application**, so handing it a script opens the GUI and nev
 The system `python3` + `PYTHONPATH` above is what works, and it is how the Docker image is
 configured (see [`docs/pipeline.md`](https://github.com/angel291592/caddiff/blob/main/docs/pipeline.md)).
 
+On Ubuntu 24.04 the stock archive has no `freecad` package, so add the FreeCAD PPA first.
+Rendering needs a display, and Xvfb provides one on a headless machine:
+
+```console
+$ sudo add-apt-repository -y ppa:freecad-maintainers/freecad-stable
+$ sudo apt install -y freecad xvfb python3-venv
+$ xvfb-run -a caddiff diff old.stp new.stp -o report
+```
+
 If `FREECAD_PYTHON` is unset, `caddiff` searches the usual Linux locations and `PATH`, and
 **fails with an actionable message** rather than silently falling back to a Python that
 cannot import FreeCAD.
