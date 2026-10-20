@@ -22,6 +22,26 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.4.0](https://github.com/angel291592/caddiff/compare/v0.3.7...v0.4.0) (2026-10-20)
+
+
+### Features
+
+* **perf:** add an opt-in volume-based performance summary (`--perf`) ([fc9f39e](https://github.com/angel291592/caddiff/commit/fc9f39e2b8e592cf7633b6ab34ced14e0c536dc8))
+
+
+### Bug Fixes
+
+* cover FreeCAD 26 in the perf probe and the fixture generator ([267a09d](https://github.com/angel291592/caddiff/commit/267a09dea5a9be0d9f85f5d1201895f4efd60834))
+* import FreeCAD first so FreeCAD 26 does not clear module names, and document the Ubuntu install ([#12](https://github.com/angel291592/caddiff/issues/12)) ([f9954a4](https://github.com/angel291592/caddiff/commit/f9954a43d4d409c60d4124b9aa68f4e756563644)), closes [#11](https://github.com/angel291592/caddiff/issues/11)
+* **perf:** close the honesty gaps an independent review found in `--perf` ([1be825b](https://github.com/angel291592/caddiff/commit/1be825b81b2b162c707b0199905c224118cab00c))
+
+
+### Documentation
+
+* record the FreeCAD 26 import-order and render-teardown pitfalls ([881d95f](https://github.com/angel291592/caddiff/commit/881d95f95be0491b081252c070f82796e6025cdf))
+* **release:** bump the pinned image/action tags to v0.3.7 ([96e0dff](https://github.com/angel291592/caddiff/commit/96e0dff158b232ae1e2c27cecca74fdcc915778f))
+
 ## [0.3.7](https://github.com/angel291592/caddiff/compare/v0.3.6...v0.3.7) (2026-10-16)
 
 
