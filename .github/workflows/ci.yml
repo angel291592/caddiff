@@ -13,7 +13,8 @@
 #      layer, not as a clean error.
 #   2. Time — building FreeCAD from source takes tens of minutes per run. Pulling
 #      the prebuilt image takes a couple of minutes and is cached by the runner.
-#   3. Compliance (AGENTS.md §6) — the image bundles LGPL/GPL binaries. Those are
+#   3. Compliance (see CONTRIBUTING.md → Hard rules and THIRD_PARTY_LICENSES.md) —
+#      the image bundles LGPL/GPL binaries. Those are
 #      produced by deploy/Dockerfile at build time and must never be committed to
 #      git. CI's job is to *consume* a published image, never to produce one.
 #   The image is built and pushed outside CI (maintainer machine or a registry
@@ -64,15 +65,25 @@ jobs:
     name: unit (offline, no FreeCAD)
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Two ends of the supported range, not two samples in the middle:
+    #   * 3.9 — the floor pyproject.toml advertises (`requires-python = ">=3.9"`).
+    #     Nothing else in CI runs that interpreter, so without it the floor is a
+    #     promise nobody checks: a `match` statement or a `X | Y` annotation would
+    #     ship and break 3.9 users silently.
+    #   * 3.12 — the interpreter the runtime image uses for the orchestrator
+    #     (deploy/Dockerfile is `FROM ubuntu:24.04`, whose `python3` is 3.12).
+    # `fail-fast: false` keeps the 3.12 result visible when 3.9 is the one that
+    # broke: the message "only the floor is red" is the diagnosis.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.12"]
     steps:
       - uses: actions/checkout@v7
 
-      # 3.12 matches the interpreter the runtime image uses for the orchestrator
-      # (deploy/Dockerfile is `FROM ubuntu:24.04`, whose `python3` is 3.12), while
-      # pyproject.toml declares `requires-python = ">=3.9"`.
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
 
       # Runtime dependencies are empty on purpose (pyproject.toml): geometry and
       # rendering live in the image, never in the system Python. `[pptx]` is the
@@ -88,7 +99,8 @@ jobs:
       - name: Smoke-check the console entry point
         run: caddiff --version
 
-      # tests/unit/ is the permanent regression suite (AGENTS.md §7): no network,
+      # tests/unit/ is the permanent regression suite (see CONTRIBUTING.md → Tests):
+      # no network,
       # no FreeCAD, no external API — it must stay green while fully offline.
       # The command is strict on purpose: a missing tests/unit/ fails with pytest's
       # exit code 4, because a green CI must mean the suite actually ran.
@@ -161,7 +173,7 @@ jobs:
 
       # Asserts the product contract, not just "the command ran": the artifacts
       # exist, the manifest says there are differences, and the manifest agrees
-      # with the exit code (AGENTS.md §3 — 1 must never mean "crashed").
+      # with the exit code (README → "Exit codes": 1 must never mean "crashed").
       - name: Assert artifacts and manifest contract
         run: |
           python3 - <<'PY'
