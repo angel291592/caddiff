@@ -125,3 +125,30 @@ Inside CI you *want* the non-zero exit code — that is the gate:
 
 Note that `caddiff difftool` returns `0` even when differences exist, so it must **not** be
 used as a CI gate.
+
+---
+
+## 6. Where this fits: review while you design, gate before you merge
+
+Some changes never survive a STEP export, and no STEP-based tool can see them: an object
+that was renamed, an expression that changed, a property that moved while the shape did
+not. Those live inside the CAD document (`.FCStd`), and the place to review them is the CAD
+application itself. For FreeCAD, add-ins such as
+[History Workbench](https://github.com/eblanshey/HistoryWorkbench) track the history of the
+model and review changes with 3D and tree comparisons, inside the GUI.
+
+`caddiff` deliberately covers the other half of the loop:
+
+| When | Where | What answers "what changed?" |
+|---|---|---|
+| while designing | your CAD application | a document-level diff (property, expression, name) — e.g. a versioning add-in |
+| before merging / releasing | CI | `caddiff diff` on the two exported STEP files: a picture, a manifest, exit code `0/1/2` |
+
+The hand-off is the export itself: review the iteration in the CAD application, export a
+STEP, let CI compare it with the previous revision. Neither tool needs to know the other
+exists — the STEP file is the interface, and no code is shared between them.
+
+This is also why a rename shows up in `caddiff` as an added/removed pair: the exported STEP
+has no memory of the old name, so the two parts have nothing left to be paired on. When you
+see a symmetric `bom_added` / `bom_removed` list, read it as "something was renamed" first —
+see "Part pairing is heuristic" in the README.
