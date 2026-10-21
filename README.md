@@ -311,7 +311,7 @@ Technical deep-dive: [`docs/pipeline.md`](https://github.com/angel291592/caddiff
 
 ## Roadmap
 
-- **v0.1 – v0.3** (released) — `caddiff diff`: BOM alignment, geometric diff, rendering,
+- **v0.1 – v0.4** (released) — `caddiff diff`: BOM alignment, geometric diff, rendering,
   HTML/Markdown/JSON reports, Docker image, GitHub Action, CI exit codes.
 - **next** — an MCP server so an agent that just edited a model can verify its own work
   against the previous revision.
