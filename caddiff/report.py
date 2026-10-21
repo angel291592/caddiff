@@ -2,7 +2,7 @@ r"""差异报告生成 —— HTML（人读 / 浏览器）与 Markdown（PR 评�
 
 ## 为什么报告是独立模块而不是塞进 PPT
 
-决策 D-006：默认产物是 **HTML + Markdown + JSON**，PPT 降为 ``--pptx`` 可选导出。
+默认产物是 **HTML + Markdown + JSON**，PPT 降为 ``--pptx`` 可选导出。
 理由：GitHub PR 里能直接贴 Markdown，浏览器里能直接看 HTML；而 PPT 要求读者装
 PowerPoint——对开源用户是纯门槛。PPT 保留给「交给工艺/质量部门」那条真实工作流。
 
@@ -14,7 +14,7 @@ f-string 足够表达这里需要的全部结构。核心包因此保持零第�
 
 ## 输入契约
 
-唯一输入是 ``diff_manifest.json``（机器契约，见 AGENTS.md §3）。同目录下读
+唯一输入是 ``diff_manifest.json``（机器契约，见 CONTRIBUTING.md 的 Code style）。同目录下读
 ``images/render_manifest.json`` 拿逐处差异的图片文件名与数值。**不要**去读
 ``geom_diff.json`` 重新推导结论——那会让报告与 manifest 出现两套口径。性能节
 （``--perf``）的数字同理：全部来自 ``summary.performance_diff``，不读 ``perf_diff.json``。
@@ -180,7 +180,7 @@ def _honesty_items(summary, t):
     perf = summary.get("performance_diff") or {}
     if perf:
         # 性能数字的口径必须跟着结论一起给：只数了 n 个封闭实体、另有 m 个对象没计入，
-        # 不写这句读者就会把「没计入」读成「这些对象没有差异」（AGENTS.md §3.3）。
+        # 不写这句读者就会把「没计入」读成「这些对象没有差异」（见 CONTRIBUTING.md 的 Code style 的「Do not fail silently」一条）。
         # 取新版（本次要评审的那一版）的计数。
         side = perf.get("new") or {}
         counted, not_counted = side.get("n_objects"), side.get("n_not_counted")
@@ -207,7 +207,7 @@ def _reason_key(reason):
 
 # ────────────────────────── 性能摘要（perf_diff.json） ──────────────────────────
 # 数据全部来自 manifest.summary.performance_diff —— 报告**不**去读 perf_diff.json /
-# perf_snapshot.json：那会让报告与 manifest 出现两套口径（AGENTS.md §3.4）。
+# perf_snapshot.json：那会让报告与 manifest 出现两套口径（报告的唯一输入是 manifest，见 docs/pipeline.md 的 report.py 条目）。
 
 def _fmt_sig(value, digits=6):
     """按有效数字格式化（mm⁵ 这类量级跨 1e3~1e9，定点写法会糊成一片）。"""

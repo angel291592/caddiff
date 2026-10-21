@@ -6,7 +6,7 @@
 → 0 个候选 → 0 处差异 → **退出码 0**。工具对一份确实改过的装配体宣布「无差异」。
 
 这类失败比崩溃危险得多：崩溃至少留下退出码 2，而「静默的 0」会被 CI 闸门当成放行
-信号。AGENTS.md §3 因此明确规定：**任何内部子步骤失败都必须传导到退出码 2**，
+信号。退出码契约因此明确规定：**任何内部子步骤失败都必须传导到退出码 2**，
 不得被折叠成 0 或 1。本文件钉住这条。
 """
 import json
@@ -148,7 +148,7 @@ def test_a_step_that_cannot_start_is_a_pipeline_error(tmp_path):
     PermissionError / OSError(WinError 193)，Linux 抛 PermissionError。原先只有
     FileNotFoundError 被翻译，于是它冒泡出 `cmd_diff` 的 `except PipelineError`，
     真实 CLI 进程以 **退出码 1 = 「检出差异」** 结束。闸门方向仍安全（拦住构建而非放行），
-    但对外承诺错了一档——AGENTS.md §3.1 要求内部失败一律传导到 2。
+    但对外承诺错了一档——退出码契约要求内部失败一律传导到 2。
     """
     with pytest.raises(run_pipeline.PipelineError) as exc:
         run_pipeline.run_step("probe", [str(tmp_path), "x.py"], timeout=5)

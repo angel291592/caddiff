@@ -25,7 +25,7 @@ import os
 
 DEFAULT_LANG = "en"
 
-# 环境变量名（AGENTS.md §2 的 `CADDIFF_*` 前缀约定）。
+# 环境变量名（`CADDIFF_*` 前缀是公开契约，README 与 docs/pipeline.md 都按它写）。
 # 存在的理由：Docker / CI 里设一次比每条命令都带 `--lang` 方便得多。
 ENV_LANG = "CADDIFF_LANG"
 
@@ -246,7 +246,7 @@ def t(key, **kwargs):
 
 
 # ===== PPTX 文案（由 build_pptx.py 使用）=====
-# 单独成节：PPT 是可选的次要导出路径（AGENTS.md §11 D-006），文案量大（数十条），
+# 单独成节：PPT 是可选导出路径（只有 `--pptx` 才用到），文案量大（数十条），
 # 与图上标注 / JSON 的键分开更好维护。
 #
 # 【为什么在文件末尾合并、而不是写进上面 _LANGS 的字面量块】

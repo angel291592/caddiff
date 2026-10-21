@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # docker-publish — build the distributable image and push it to GHCR.
 #
-# WHY THIS WORKFLOW EXISTS (AGENTS.md §6): the image bundles FreeCAD/OpenCASCADE
+# WHY THIS WORKFLOW EXISTS (see CONTRIBUTING.md -> Hard rules, THIRD_PARTY_LICENSES.md): the image bundles FreeCAD/OpenCASCADE
 # under their own licenses, so "image tag ↔ source tag ↔ build script" must line
 # up one-to-one. Before this file the image existed only on the maintainer's
 # machine, which is exactly the state that rule forbids: nothing tied

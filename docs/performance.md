@@ -94,7 +94,7 @@ all children, one `Part::Feature` per part, plus an `App::Origin` datum tree (ax
 - **Therefore: take an object only when it has a `Shape` and none of its children can produce one;
   otherwise descend.** This yields 48 / 780 / 233 / 48 parts on the same four files, each with its
   own tensor, and totals that agree with the container-based figure to within 1e-3 (the leaf sum
-  is "the material of the parts added up", and it matches decision **D-015**, where a container is
+  is "the material of the parts added up", and it matches the container rule, where a container is
   defined as a duplicate of its children and excluded from comparison).
 - The fallback matters: a container whose children are only datums (nothing can produce a shape)
   must still contribute **its own** Shape, otherwise the file silently becomes "0 objects".

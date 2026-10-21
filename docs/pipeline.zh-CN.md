@@ -340,7 +340,7 @@ PART-C 两簇中心仅相距约 2mm，特写图上投影必然重叠，画两个
 **J1. 名字折叠会把「同前缀的不同零件」并成一个候选，进而被容器判定整组吞掉——真值 1 处位移被报成「无差异」、退出码 0。**
 零件名形如 `openDog V3_internals_toleranced v001/v002/.../v11`（FreeCAD/OCCT 导入时生成），`base_name` 把 8 个**不同零件**全折叠成同一个 key。几何层的容器判定是「子对象 key 命中候选集合即判为容器」，折叠后容器的子对象 key **等于容器自己的 key** → **自我命中** → 整组连同容器一起记入 `skipped_parts`，8 个零件无一参与比对。这是 CI 闸门最危险的假阴性：闸门放行了本该拦下的改动。
 修法（两层同时改，缺一不可）：① `bom_diff.align_keys` 按**族**决定折叠与否——该族两版名字集合完全相同就用精确名（名字稳定时零歧义），否则才折叠（保留 Creo 实例编号漂移场景）；key 写进 `bom_diff.json` 的 `old_key_map`/`new_key_map`，几何层查这张表，**消除两份 `base_name` 真相源**。② 容器判定加 `k != bn` 防御，防止折叠族里再次自我命中。
-**别再试这条错路**：只把容器判定改成按对象类型（`App::Part` + 非空 `Group`）判断不够——折叠让容器与零件共享同一 key，组级判定无法拆分，实测会让容器重新参与比对并报出重复计数（真值 1 处报成 2 处，D-015 回归）。
+**别再试这条错路**：只把容器判定改成按对象类型（`App::Part` + 非空 `Group`）判断不够——折叠让容器与零件共享同一 key，组级判定无法拆分，实测会让容器重新参与比对并报出重复计数（真值 1 处报成 2 处，容器规则回归）。
 
 **J2. OCCT 布尔在「两个几乎完全重合的复杂 STEP 形状」之间会静默返回退化结果。**
 实测同一零件的两个版本（28 面，体积差 10.4mm³，切掉 50% 体积也一样）：`common` 返回 **-265.07**（负体积）、`fuse` 得空形状且 bbox 为 **±DBL_MAX**、`cut` 结果比原形状还大（21188 > 20923）。同两个零件的形状本身没问题（`common(self,self)` 正常、与 0.5mm 平移副本布尔正常、与不相干零件布尔正常）——**只在近重合档退化**。合成样例（`Part.makeBox` 原生构造）不受影响，所以此前一直没暴露。
@@ -362,7 +362,7 @@ why 只在体积差超容差时降级：纯 bbox 变化（如旋转）没有体�
 
 ### K. FreeCAD 26 的向前兼容（2026-10-18）
 
-只在 FreeCAD 26.x 上复现。镜像基线 FreeCAD 0.21（决策 D-022）与 1.1.3 不受影响，容器路径零改动；这条只针对用户用 `FREECAD_PYTHON` 接入 26.x 解释器的情况。
+只在 FreeCAD 26.x 上复现。镜像基线 FreeCAD 0.21 与 1.1.3 不受影响，容器路径零改动；这条只针对用户用 `FREECAD_PYTHON` 接入 26.x 解释器的情况。
 
 **K1. 26.x 上，脚本以 `__main__` 方式运行且 `import FreeCAD` 时，会清掉在此之前绑定的模块级名字——之后第一次使用就抛 `NameError`，该步骤非零退出，一个产物都不写。**
 报告者在 26.3.0（conda-forge，Python 3.11）实测：`geom_diff.py` 死在 `FC_BIN, FC_LIB = fcenv.derive_bin_lib(...)`，报 `NameError: name 'fcenv' is not defined`；只有 `os` / `sys` 这两个名字存活。`render_diff.py`、`boolean_worker.py`、`perf_probe.py` 原来都是同样的顺序。**规则：凡由 FreeCAD 解释器以独立脚本方式启动的模块，`import FreeCAD`（及按需的 `Part` / `Import` / `FreeCADGui`）必须排在其余所有 import 之前。** `fcenv` 是唯一必须留在它前面的例外（负责注入 FreeCAD 的 bin/lib 路径），所以 FreeCAD 之后要再 import 一次；`os` / `sys` 存活，不必重复。
@@ -521,7 +521,7 @@ summary.performance_diff              仅 --perf 时出现；整块性能结果�
 - `caddiff/perf_snapshot.py` — 那份快照背后的遍历与聚合（纯几何，**模块顶层不 import FreeCAD**，所以系统 Python 能给它做单测）：两遍平行轴累积、三级质心回退、带相对容差的张量有效性判据，以及每个未计入对象的明确理由。`principal_from_tensor()` 自带 3×3 Jacobi 特征分解（本包零第三方依赖）
 - `caddiff/perf_diff.py` — 快照→快照的纯算术（不碰 FreeCAD、不起子进程、不读文件）：体积/质心/惯量差值、中心位移的精确逐零件分摊，以及 `--density` 取值解析。**它不参与退出码判定**
 - `caddiff/render_diff.py` — 渲染+红框+品红高亮+新旧并排+方向标记带（FreeCAD Python，GUI 模式）。**`run()` 三阶段顺序是硬约束**（坑 A1）；`capture_and_project()` 保证截图与投影同源（坑 B1/B2）；`pick_best_direction()`/`score_direction()` 是整体图自动选向（坑 F1~F4）；`add_direction_banner()` 画方向标记带（坑 F5/F6）；`split_clusters()`/`project_clusters()`/`merge_rects()`/`draw_rects_on_image()` 是逐差异簇分别标框（坑 H1~H6）；`_place_label()`/`_leader_cost()`/`_region_emptiness()` 是圈号的框外引出线标注与落点实测选位（坑 H7/H8）；`render_moved_one()`/`draw_move_arrow()` 是位移类差异的渲染（坑 I2/I3）；`derive_label()` 推导版本标签；`write_manifest()` 原子落盘。输出目录由调用方传入（`caddiff diff` 传 `<out>/images`）。**import 顺序遵循坑 K1；`os._exit(0)` 退出路径见坑 K2**
-- `caddiff/report.py` — 差异报告生成（系统 Python，纯标准库）：读 `diff_manifest.json` + 同目录 `images/render_manifest.json`（拿逐处差异的图片文件名与数值），出 `report.html` 与 `report.md`。**报告独立成模块、PPT 降为可选是决策 D-006**：HTML/Markdown 是默认产物，PR 里能直接贴 Markdown、浏览器里能直接看 HTML，而 PPT 要求读者装 PowerPoint。**刻意不引模板引擎**：报告是给人看的一次性产物，为它拉一个 Jinja2 依赖不划算，`html.escape` + f-string 足够。**不要读 `geom_diff.json` 重新推导结论**——那会让报告与 manifest 出现两套口径。**图片文件名必须百分号编码后才能进 Markdown 链接 / HTML `src`**（`_image_url()`）：文件名由零件名拼出，而空格在 CommonMark 的链接目的地里是**终止符**——不编码时 GitHub 把整行渲染成纯文本，图**静默消失**（没有 `<img>`、也不报错）。公开语料实测：186 张图的名字含空格、36 张含括号
+- `caddiff/report.py` — 差异报告生成（系统 Python，纯标准库）：读 `diff_manifest.json` + 同目录 `images/render_manifest.json`（拿逐处差异的图片文件名与数值），出 `report.html` 与 `report.md`。**报告独立成模块、PPT 降为可选是刻意选择**：HTML/Markdown 是默认产物，PR 里能直接贴 Markdown、浏览器里能直接看 HTML，而 PPT 要求读者装 PowerPoint。**刻意不引模板引擎**：报告是给人看的一次性产物，为它拉一个 Jinja2 依赖不划算，`html.escape` + f-string 足够。**不要读 `geom_diff.json` 重新推导结论**——那会让报告与 manifest 出现两套口径。**图片文件名必须百分号编码后才能进 Markdown 链接 / HTML `src`**（`_image_url()`）：文件名由零件名拼出，而空格在 CommonMark 的链接目的地里是**终止符**——不编码时 GitHub 把整行渲染成纯文本，图**静默消失**（没有 `<img>`、也不报错）。公开语料实测：186 张图的名字含空格、36 张含括号
 - `caddiff/build_pptx.py` — PPT 拼版（系统 Python）：标题条 + 三图横排 + 两栏结构化信息带 + 图例（版式约束见坑 G1~G7）。`cluster_size_lines()` 按簇列尺寸，圈号 `CIRCLED` 必须与 render_diff 一致（坑 H6）；按 `change_type` 分派 shape_changed / moved 两套版式；`build_empty_slide()` 出"未检出差异"说明页（含被跳过零件清单）；`--pptx` 时才被调用
 - `caddiff/run_pipeline.py` — 编排入口（`caddiff diff` 子命令的流水线实现），注意**渲染步**要传 `stp_old`+`stp_new` 两个路径（它的步骤号在不开 `--perf` 时是 3、开了是 4）。异常与超时会打印已产出的中间产物路径；渲染超时按差异数估算而非写死；`build_summary()` 把散落在多个 JSON 里的结论汇总进 `diff_manifest.json` 的 `summary` 块，供调用方单点消费（见 §9）
 - `caddiff/cli.py` — 命令行入口（argparse）与**退出码契约的唯一实现处**：编排层失败一律抛 `PipelineError`，由这里翻译成 2，与"检出差异 = 1"严格分开（早先任何一步失败都 `sys.exit(1)`，于是"FreeCAD 崩了"和"两版真有差异"在 CI 里长得一模一样，闸门会放行本该拦下的提交、也会拦住本该放行的提交）；argparse 自身报错也是 2，与本契约一致

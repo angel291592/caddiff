@@ -51,7 +51,7 @@ def test_no_differences_anywhere(tmp_path):
     assert s["has_differences"] is False
     assert s["bom_diff_count"] == 0
     assert s["geometry_diff_count"] == 0
-    # 无差异的原因必须在契约的 summary 块里（单一入口承诺；决策 D-024）
+    # 无差异的原因必须在契约的 summary 块里（单一入口承诺；无差异原因也写进 summary）
     assert s["reason"] == i18n.t("summary.no_geometry_diff")
 
 
@@ -126,7 +126,7 @@ def test_labels_and_settings_are_passed_through(tmp_path):
 
 
 # ────────────────────────── --perf 开关语义 ──────────────────────────
-# 这一组守的是「性能功能永不改变 CI 闸门的判定」这条对外承诺（AGENTS.md §3.1）。
+# 这一组守的是「性能功能永不改变 CI 判定」这条对外承诺（--perf 永不参与退出码判定，见 README.md 的 "Exit codes"）。
 
 _PERF_BLOCK = {"delta_volume_mm3": -192.0, "delta_volume_pct": -13.33,
                "centroid_shift_mm": 0.4, "dominant_axis": "\u2212X",

@@ -370,7 +370,7 @@ def test_shells_and_degenerate_solids_are_counted_never_dropped_silently():
 def test_object_type_outside_the_list_is_reported_never_dropped_silently():
     # 类型不在清单里但自带实体的对象（裸 Part::Compound 等）**不计数**（否则 PartDesign 的
     # Body 与其 tip 特征会各算一次），但必须留下痕迹：静默丢弃等于让「没提到」被读成
-    # 「没有这个对象」（AGENTS.md §3.3）。
+    # 「没有这个对象」（见 CONTRIBUTING.md 的 Code style）。
     compound = _FakeObj("BareCompound", _FakeShape(500.0), type_id="Part::Compound")
     snap = perf_snapshot.snapshot([compound], "old")
     assert snap["n_objects"] == 0

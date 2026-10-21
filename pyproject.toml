@@ -36,7 +36,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-# PPT 是可选导出路径（决策 D-006）。不装这个 extra，`--pptx` 会给出明确的安装提示。
+# PPT 是可选导出路径。不装这个 extra，`--pptx` 会给出明确的安装提示。
 pptx = ["python-pptx>=0.6.23"]
 # 测试依赖单独成组，CI 只需 `pip install -e ".[test]"`，不必在 workflow 里手写包名。
 test = ["pytest>=7"]
@@ -62,7 +62,7 @@ packages = ["caddiff"]
 version = { attr = "caddiff.version.__version__" }
 
 [tool.pytest.ini_options]
-# 常驻回归测试只放 tests/unit（见 AGENTS.md §7）；tests/_scratch 是一次性脚本，不入库。
+# 常驻回归测试只放 tests/unit（见 CONTRIBUTING.md 的 Tests）；tests/_scratch 是一次性脚本，不入库。
 testpaths = ["tests/unit"]
 addopts = "-q"
 
@@ -71,5 +71,5 @@ line-length = 100
 target-version = "py39"
 
 [tool.ruff.lint]
-# 只开「必然出错」类规则，不开风格类——风格类噪声会把真信号淹掉（见 AGENTS.md §7）。
+# 只开「必然出错」类规则，不开风格类——风格类噪声会把真信号淹掉。
 select = ["E9", "F63", "F7", "F82"]

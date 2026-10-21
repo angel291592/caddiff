@@ -5,7 +5,7 @@ docs/performance.md）。本模块只做算术：不取几何、不起子进程�
 
 【为什么差异不翻转退出码】退出码语义是「检出差异」，而性能数字是形状/BOM 变化的派生物：
 体积/质心变了，本质上一定是几何层已经报了差异。让它参与判定，等于让「改了材质或参数」
-这类改动把 CI 无缘无故变红（AGENTS.md §3 的对外承诺就此破坏）。故本模块**永不**参与
+这类改动把 CI 无缘无故变红（退出码契约的对外承诺就此破坏，见 README.md 的 "Exit codes"）。故本模块**永不**参与
 ``has_differences``。
 
 【为什么质心位移要写成精确分摊，而不是 ``Σ m_i Δc_i``】后者会漏掉增件/删件与体积变化，
@@ -30,7 +30,7 @@ DEFAULT_BUDGET_S = perf_snapshot.DEFAULT_BUDGET_S
 # 启动」这段不受预算约束的开销（实测导入 9 对象 1.0s / 193 对象 6.0s，大文件更久）。
 PROBE_TIMEOUT_MARGIN_S = 300.0
 
-# 主导轴的正负号用 locale-neutral 的 U+2212（同 AGENTS.md §3 的「方向 tag 不翻译」）。
+# 主导轴的正负号用 locale-neutral 的 U+2212（同 i18n 铁律：方向 tag 不翻译，见 caddiff/i18n.py 顶部注释）。
 MINUS = "\u2212"
 
 # 分摊恒等式的自检容差与「把零贡献零件剔掉」的阈值（相对装配体尺度）。
@@ -169,7 +169,7 @@ def _side_block(snapshot):
 
     why 要有它：报告要显示「实体 CAD 体积 / 绕整体质心的体积惯量 / 主矩」这些**绝对值**
     （§2.3 的文案是这么写的），而报告的唯一输入是 manifest——绝对值必须随摘要一起带出来，
-    不能让报告再去读另一份文件（否则就是两套口径，AGENTS.md §3.4）。
+    不能让报告再去读另一份文件（否则就是两套口径；报告的唯一输入是 manifest，见 docs/pipeline.md 的 report.py 条目）。
 
     ``n_not_counted`` = 面/壳对象数 + ``unavailable`` 条目数（负体积等对象已在后者里，
     不重复计）。

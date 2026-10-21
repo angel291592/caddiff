@@ -27,7 +27,7 @@ DEFAULT_BUDGET_S = 300.0
 # 已经是全部子件的并集（坑 F1 —— 容器与子件都算会把每块料算两次，实测比值 2.0/2.0/4.0）。
 GEOMETRY_TYPES = ("Part::Feature", "App::Part")
 
-# ``unavailable[].reason`` 是机器读的枚举值，**不翻译**（AGENTS.md §4）。
+# ``unavailable[].reason`` 是机器读的枚举值，**不翻译**（见 caddiff/i18n.py 顶部注释）。
 REASON_NO_SHAPE = "no_shape"
 REASON_NO_CENTROID = "no_centroid"
 REASON_VOLUME_UNAVAILABLE = "volume_unavailable"
@@ -41,7 +41,7 @@ REASON_UNSUPPORTED_TYPE = "unsupported_type"
 
 # walk_objects 的第三态：类型不在 GEOMETRY_TYPES 里、但自带实体。
 # 它**不计数**（类型清单是刻意的：PartDesign 的 Body 与其 tip 特征同时取会重复计数），
-# 但**必须留痕**——静默丢弃等于让「没提到」被读成「没有这个对象」（AGENTS.md §3.3）。
+# 但**必须留痕**——静默丢弃等于让「没提到」被读成「没有这个对象」（见 CONTRIBUTING.md 的 Code style 的「Do not fail silently」一条）。
 UNSUPPORTED = object()
 
 # 体积守恒自检的相对容差：仅用于发现「累加路径被改坏」，正常浮点累加远小于它。
@@ -64,7 +64,7 @@ def base_name(name):
     零件名对不上）；这里不能 import bom_diff —— 本模块要能在 FreeCAD 解释器里跑，而
     bom_diff 只在系统 Python 下被导入过，跨解释器复用同一个模块并不成立，故就地重写这一行。
 
-    ⚠️ 它只给**族名**，不单独决定是否折叠（那是 BOM 层 align_keys 的职责，见决策 D-019）。
+    ⚠️ 它只给**族名**，不单独决定是否折叠（那是 BOM 层 align_keys 的职责，见「族级折叠、两版联合决定」的约定）。
     本模块只把它当展示用的字段，**不用它做聚合 key** —— 折叠错了两版零件会被并成一个。
     """
     last_alpha = max((i for i, c in enumerate(name) if c.isalpha()), default=len(name) - 1)
@@ -112,7 +112,7 @@ def walk_objects(objects):
        （Go Kart / XYZ / ekvc / Voron-0 总成）全都如此：逐零件归因与惯性张量全部消失。
     故规则是「有 Shape 且子件里没有可产出的形状」才取自己；子件里有零件时一律下钻。
     实测两种清单的总量一致到 1e-3 以内（plan 的 F1 记录比值 1.0000），下钻那份是"各零件
-    体积之和"，也正是既有决策 D-015 的口径（容器被视为子件并集的重复，不参与比对）。
+    体积之和"，也正是既有约定：容器被视为子件并集的重复，不参与比对。
 
     只从**根对象**开始走（没有父对象的那些），否则容器与其子件会被各算一次。
     产出三种形态：``(obj, shape)`` 计入、``(obj, None)`` 记 ``no_shape``、
@@ -228,7 +228,7 @@ def _mat3_from_tensor6(t6):
 def _jacobi_eigen(matrix, max_sweeps=64):
     """对称 3×3 的 Jacobi 特征分解。返回 ``(特征值, 特征向量矩阵)`` 或 None。
 
-    为什么自己写：本包核心零第三方依赖（AGENTS.md §3 边界），numpy 不能引；3×3 对称矩阵
+    为什么自己写：本包核心零第三方依赖（见 pyproject.toml 的 dependencies = []），numpy 不能引；3×3 对称矩阵
     的 Jacobi 旋转足够精确且确定性，且**不做任何排序**——排序在主矩里另有含义（降序），
     把两件事混在一个函数里最容易出错。
     """

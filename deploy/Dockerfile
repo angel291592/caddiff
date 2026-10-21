@@ -7,7 +7,7 @@
 # 运行（一条命令，卷挂当前目录）：
 #   docker run --rm -v "$PWD:/data" caddiff diff /data/old.stp /data/new.stp -o /data/report
 #
-# ── 合规要点（改本文件前必读 AGENTS.md §6）────────────────────────────────
+# ── 合规要点（改本文件前必读 CONTRIBUTING.md 的 Hard rules 与 THIRD_PARTY_LICENSES.md）──
 # 1. 本镜像**打包了 FreeCAD / OpenCASCADE（LGPL，且 FreeCAD 发行版内还含 GPL 文件）**。
 #    因此镜像 tag 必须与源码 tag、本构建脚本一一对应，README 也必须说明
 #    「仓库代码 Apache-2.0」与「镜像内第三方组件各自许可证」是两套东西。
@@ -35,7 +35,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # 一个货真价实的解释器，所以同一套调用式在 Windows 成立、在这个 Linux 打包上不成立——
 # 这正是它长期没被发现的原因。
 # 改成系统 python3 + PYTHONPATH 指向 FreeCAD 的模块目录后，流水线本来就用的
-# `python3 script.py args` 形式直接成立（AGENTS.md D-003：解释器路径单一真相源，不加平台分支）。
+# `python3 script.py args` 形式直接成立（解释器路径单一真相源，不加平台分支）。
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     PYTHONUNBUFFERED=1 \
@@ -109,7 +109,7 @@ doc = FreeCAD.newDocument('BuildProbe'); \
 av = FreeCADGui.getDocument(doc.Name).ActiveView; \
 print('viewport OK:', type(av).__name__)"
 
-# ── 可选依赖：PPT 导出（决策 D-006，--pptx 才用到）────────────────────────
+# ── 可选依赖：PPT 导出（--pptx 才用到）────────────────────────
 RUN pip3 install --no-cache-dir --break-system-packages "python-pptx>=0.6.23"
 
 # ── 中文字体命中检查（缺失时图上出豆腐块且不报错，必须在构建期拦下）──────

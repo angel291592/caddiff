@@ -3,10 +3,10 @@
 # 为什么是这几条（而不是更多）：
 #   1. 全部 hook 都在亚秒级完成，`pre-commit run --all-files` 不会让提交变慢。
 #      重型检查（mypy / pylint / 完整 lint 集）不进这里：它们慢，而且噪声会把真信号淹掉
-#      （与 pyproject.toml 里 ruff 只开 `E9/F63/F7/F82` 是同一个理由，见 AGENTS.md §7）。
+#      （与 pyproject.toml 里 ruff 只开 `E9/F63/F7/F82` 是同一个理由：风格类噪声会淹掉真信号）。
 #   2. `check-added-large-files --maxkb=500` 是**脱敏防线**，不是洁癖：STEP 是纯文本，
 #      客户装配体动辄几十 MB，派生出的 PPTX/PNG 也一样。这条 hook 让「顺手把客户模型
-#      提交进来」在本地就被拦下，而不是等推送后才发现（AGENTS.md §5）。
+#      提交进来」在本地就被拦下，而不是等推送后才发现（见 CONTRIBUTING.md 的 Hard rules）。
 #      注意它只看本次提交新增/修改的文件，历史里的东西它管不了。
 #   3. `detect-private-key` 拦 PEM 私钥误提交；`check-merge-conflict` 拦残留冲突标记。
 #   4. 故意**没有**开 `check-json`：`.devcontainer/devcontainer.json` 是 JSONC

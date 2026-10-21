@@ -18,7 +18,7 @@
 #   * apart from `caddiff/version.py` and `CHANGELOG.md`, nothing else is touched.
 #
 # TAG FORMAT: `include-component-in-tag: false` keeps tags at `v0.2.0` instead of
-# `caddiff-v0.2.0`. AGENTS.md §6 requires image tag ↔ source tag ↔ build script to
+# `caddiff-v0.2.0`. The compliance rule requires image tag ↔ source tag ↔ build script to
 # line up one-to-one, and the plain `vX.Y.Z` form is what the Docker build and the
 # docs assume.
 #

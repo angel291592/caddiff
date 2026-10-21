@@ -7,11 +7,11 @@ r"""STP 装配体差异对比流水线 —— 编排层。
 【为什么 step 2/3 用不同解释器】geom_diff / render_diff 依赖 FreeCAD 的编译扩展，
 只兼容其打包绑定的 Python；bom_diff / build_pptx 是纯逻辑，用系统 Python。
 
-【退出码契约】见 AGENTS.md §3：``0`` 无差异 / ``1`` 检出差异 / ``2`` 执行失败。
+【退出码契约】见 README.md 的 "Exit codes"：``0`` 无差异 / ``1`` 检出差异 / ``2`` 执行失败。
 本模块只把失败**抛成 PipelineError**，由入口翻译成退出码。早先这里直接 ``sys.exit(1)``，
 导致「子进程超时」与「检出差异」在调用方看来无法区分——CI 闸门据此判断必然出错。
 
-【产物布局】见 AGENTS.md §3 与 docs/pipeline.md：
+【产物布局】见 docs/pipeline.md：
 ``<out>/diff_manifest.json`` · ``report.html`` · ``report.md`` · ``images/*.png`` ·
 ``compare.pptx``（仅 --pptx）· ``bom_diff.json`` · ``geom_diff.json``
 """
@@ -92,7 +92,7 @@ def run_step(name, cmd, timeout=600, artifacts=None):
         # FileNotFoundError 之外还有一批「根本启动不了」的形态：Windows 上不可执行的文件
         # 是 OSError(WinError 193) / PermissionError(5)，Linux 上是 PermissionError /
         # Exec format error。它们若冒泡出 main()，进程会以未捕获异常结束 → **退出码 1**，
-        # 也就是「检出差异」——直接违反 AGENTS.md §3.1（内部失败必须传导到 2）。
+        # 也就是「检出差异」——直接违反退出码契约（内部失败必须传导到 2，见 README.md 的 "Exit codes"）。
         # 实测复现：cmd[0] 指向一个不可执行的路径时，真实 CLI 进程退出码为 1。
         print(f"  CANNOT START: {cmd[0]} ({type(exc).__name__})")
         _print_artifacts(artifacts)
@@ -236,13 +236,13 @@ def build_summary(bom_json, geom_json, render_manifest, label_old="", label_new=
         summary["bom_diff_count"] or summary["geometry_diff_count"])
     if not summary["has_differences"]:
         # 无差异的原因必须进契约：summary 块对调用方承诺"读它就够"（docs/pipeline.md §9），
-        # 新增可选字段允许不改版本号（AGENTS.md §3.2）。几何空但 BOM 有差异时不写——
+        # 新增可选字段允许不改版本号（见 CONTRIBUTING.md 的 Code style：新增字段可以，改名/删除属破坏性变更）。几何空但 BOM 有差异时不写——
         # 那是 has_differences=True 的场景，写"无几何差异"会误导 JSON 消费者误读结论。
         summary["reason"] = i18n.t("summary.no_geometry_diff")
 
     if perf_json is not None:
         # 性能块的**全部**内容整体透传（含每版绝对值）：报告的唯一输入是 manifest
-        # （AGENTS.md §3.4 单一入口），少了绝对值报告就只能去读第二份文件、于是两套口径。
+        # （单一入口见 docs/pipeline.md 的 summary 契约），少了绝对值报告就只能去读第二份文件、于是两套口径。
         # 读不出来时写空 dict：键存在（说明本次开了 --perf）但没有数字，不静默假装没开。
         try:
             with open(perf_json, "r", encoding="utf-8") as f:
@@ -379,7 +379,7 @@ def run_diff(stp_old, stp_new, output_dir,
         with open(perf_json, "w", encoding="utf-8") as f:
             json.dump(perf_block, f, ensure_ascii=False, indent=2)
         if perf_block.get("degraded_reason"):
-            # 降级必须留痕（AGENTS.md §3.4）：JSON 里有标记，控制台再喊一声，避免读者把
+            # 降级必须留痕（见 CONTRIBUTING.md 的 Code style 的「Do not fail silently」一条）：JSON 里有标记，控制台再喊一声，避免读者把
             # 一个没通过自检的分摊当正常结论。
             print("  WARN: the performance block is degraded (%s) — see perf_diff.json"
                   % perf_block["degraded_reason"])

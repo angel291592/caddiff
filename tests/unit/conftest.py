@@ -4,7 +4,7 @@ why 要手工插 sys.path：`caddiff/` 是一个「既可被 pip 安装、又会
 脚本执行」的目录（见 caddiff/__init__.py 的 docstring），模块之间用**扁平 import**。
 测试直接跑在源码树上，所以必须把该目录塞进 sys.path，否则 `import run_pipeline` 失败。
 
-⚠️ 本目录下的测试**不得**依赖 FreeCAD、不得联网、不得调用任何外部 API（AGENTS.md §7）。
+⚠️ 本目录下的测试**不得**依赖 FreeCAD、不得联网、不得调用任何外部 API（见 CONTRIBUTING.md 的 Tests）。
 FreeCAD 相关的验证属于端到端冒烟，不在这里。
 """
 import os

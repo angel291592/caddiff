@@ -7,7 +7,7 @@
 * **本测试文件本身**也不许自命中——所以下面所有"违规样本"都在**运行时拼装**，
   源码里不留任何真字面量。这条约束由最后一个测试自动守住。
 
-不联网、不依赖 FreeCAD、导入时零副作用（AGENTS.md §7）。
+不联网、不依赖 FreeCAD、导入时零副作用（见 CONTRIBUTING.md 的 Tests）。
 """
 import os
 import subprocess

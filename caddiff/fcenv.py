@@ -12,7 +12,7 @@ Linux/容器下会静默走错解释器或直接 FileNotFoundError；改一次�
 
 **候选必须真的试跑一次才算数**（``_runs_script_file``）：第 2–4 条本质是在猜，猜错的
 代价是把 Linux 发行版的 ``<prefix>/bin/freecad-python3`` 当成解释器——那是一份内嵌
-Python 的 **GUI 应用**，喂它脚本会启动界面并永不返回（D-022 实测 300s 超时、零输出）。
+Python 的 **GUI 应用**，喂它脚本会启动界面并永不返回（实测 300s 超时、零输出）。
 存在性检查拦不住它（它确实存在、确实可执行、还能过 ``-c``）。
 
 **找不到时抛错，不静默回退到当前解释器**——静默回退会在 ``import FreeCAD`` 处才炸，
@@ -44,7 +44,7 @@ _PATH_NAMES = ("freecad-python3", "FreeCADCmd", "freecadcmd")
 _PROBE_TIMEOUT = 15
 
 # 显式（FREECAD_PYTHON）只验证到「能执行脚本文件」为止：路径是用户自己选的，不再替他
-# 假设更多。试跑源码必须是**脚本文件**内容——``-c`` 拦不住 GUI 应用（D-022 实测）。
+# 假设更多。试跑源码必须是**脚本文件**内容——``-c`` 拦不住 GUI 应用（实测）。
 _PROBE_SRC = "raise SystemExit(0)\n"
 
 # 自动发现（第 2–4 条）本质是在猜，要求提高到「真的能 import FreeCAD」，否则把
@@ -69,7 +69,7 @@ def _runs_script_file(python_exe, source):
 
     why 不能只看 ``os.path.exists``：Linux 发行版把 ``<prefix>/bin/freecad-python3``
     装成一份内嵌 Python 的 **GUI 应用**——它存在、可执行、``-c`` 也能过，但位置参数会被
-    读成「要打开的文档」，于是启动整个 GUI 后**永不返回**（D-022 实测 300s 超时 rc=124、
+    读成「要打开的文档」，于是启动整个 GUI 后**永不返回**（实测 300s 超时 rc=124、
     零输出）。唯一能区分「解释器」与「GUI 应用」的判据，就是让它真的执行一个**脚本文件**
     （``deploy/Dockerfile`` 的构建期断言用的也是这一条）。
 

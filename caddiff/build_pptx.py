@@ -28,7 +28,7 @@ if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
 import console  # noqa: E402
-import i18n  # noqa: E402  （产出物文案唯一真相源，见 AGENTS.md §4）
+import i18n  # noqa: E402  （产出物文案唯一真相源，见 caddiff/i18n.py 顶部注释与 CONTRIBUTING.md 的 Code style）
 
 console.enable_utf8_output()
 
@@ -88,7 +88,7 @@ def summary_col_labels():
     """汇总表表头文案。
 
     why 是函数而不是模块级常量：文案要走 i18n，而 import 时 `--lang` 还没解析
-    （AGENTS.md §4：模块级常量里不许放文案）。列数与 SUMMARY_COL_W 必须一致。
+    （i18n 铁律：模块级常量里不许放文案，见 caddiff/i18n.py 顶部注释）。列数与 SUMMARY_COL_W 必须一致。
     """
     return [i18n.t("pptx.col.index"), i18n.t("pptx.col.part_name"),
             i18n.t("pptx.col.type"), i18n.t("pptx.col.volume_delta"),
@@ -541,7 +541,7 @@ def run(manifest_path, output_pptx):
     summary = _load_summary(manifest_path)
 
     if not manifest:
-        # summary 来自父目录 diff_manifest.json（决策 D-024：无差异原因也在契约里）
+        # summary 来自父目录 diff_manifest.json（无差异原因也在机器契约里）
         build_empty_slide(prs, summary)
         prs.save(output_pptx)
         print(f"PPTX saved: {output_pptx}")

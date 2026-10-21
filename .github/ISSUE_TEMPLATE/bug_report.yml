@@ -4,7 +4,7 @@ title: "[Bug]: "
 labels: ["bug"]
 body:
   # ── 安全警告放在最前面 ──────────────────────────────────────────────────────
-  # CAD 文件常含商业机密，派生出的 PNG/JSON/HTML 里也有明文零件名（AGENTS.md §5）。
+  # CAD 文件常含商业机密，派生出的 PNG/JSON/HTML 里也有明文零件名（见 CONTRIBUTING.md 的 Hard rules 与 SECURITY.md）。
   # 这条必须在用户开始填表之前就看到，所以是 body 的第一项。
   - type: markdown
     attributes:

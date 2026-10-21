@@ -278,7 +278,7 @@ def note_render_defect(rec, panel, why):
     特写全白），重试一次通常就好。
     why 不再只打印警告：历史上这里只 print 就继续往下走，坏图照样落盘、照样通过全部
     下游断言（它们只看文件存不存在），用户拿到的是「红框框着一片空白」的报告——
-    正是 AGENTS.md §3.4 禁止的静默失败。检测器早就在代码里，缺的只是让它起作用。
+    正是硬规则禁止的静默失败（见 CONTRIBUTING.md 的 Code style）。检测器早就在代码里，缺的只是让它起作用。
     """
     print(f"    !! {panel}: {why}")
     rec.setdefault("render_defects", []).append(panel)
@@ -1491,7 +1491,7 @@ def render_moved_one(md, av, doc, output_dir, bn, idx, change, bbox,
     label_new = label_new or t("label.new")
     rec = {"base_name": bn, "instance_index": change["instance_index"],
            "change_type": "moved", "label_old": label_old, "label_new": label_new}
-    # moved 类的既有字段取值约定（下游必须先判 change_type 再读，见 AGENTS.md §3 契约铁律）：
+    # moved 类的既有字段取值约定（下游必须先判 change_type 再读，见 CONTRIBUTING.md 的 Code style 里的契约条款）：
     # 没有对称差 → 无簇、无增减料。写成 0 而非缺省，避免下游 KeyError。
     rec["cluster_count"] = 0
     rec["cluster_details"] = []
@@ -1741,7 +1741,7 @@ def run(geom_json_path, stp_old, stp_new, output_dir,
         # 此处 GUI 尚未初始化，也【不要】启动它——省 3s 且避免无谓弹窗。
         manifest_path = write_manifest(output_dir, [])
         # 无差异的原因由 build_summary 汇总进 diff_manifest.json 的 summary 块
-        # （决策 D-024）；这里不再写第二份 summary——两套口径必然漂移。
+        # （见 docs/pipeline.md 的 manifest 契约）；这里不再写第二份 summary——两套口径必然漂移。
         print("No geometric differences to render (wrote an empty manifest)")
         print(f"Manifest: {manifest_path}")
         return
@@ -1814,7 +1814,7 @@ def run(geom_json_path, stp_old, stp_new, output_dir,
             #
             # 渲染函数把「这一帧全白」记进 rec["render_defects"]（见 note_render_defect）。
             # 离屏 GUI 偶发会截到空图，所以先重试一次；重试后仍为空就明确失败——绝不落盘
-            # 一张「红框框着空白」的图去冒充差异证据（AGENTS.md §3.4 不做静默失败）。
+            # 一张「红框框着空白」的图去冒充差异证据（不做静默失败是硬规则，见 CONTRIBUTING.md 的 Code style）。
             defects = []
             for attempt in (1, 2):
                 if ctype == "moved":

@@ -123,7 +123,7 @@ def repo_object_names():
     跟着一起被放过。对象名判定只放过它自己那一个 token。
 
     取不到对象表时返回空集合——即「什么都不算自家对象」，逐字维持改动前的行为，
-    宁可误报也不放过（AGENTS.md D-018 的 fail-closed 方向）。
+    宁可误报也不放过（fail-closed 方向）。
     """
     global _OBJECT_NAMES
     if _OBJECT_NAMES is None:
