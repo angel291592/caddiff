@@ -22,6 +22,17 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.4.2](https://github.com/angel291592/caddiff/compare/v0.4.1...v0.4.2) (2026-10-21)
+
+
+### Documentation
+
+* **git-integration:** document the design-time review / CI gate split ([9057620](https://github.com/angel291592/caddiff/commit/905762099ab47da0b6be367a3e1af7c4b9a40d3e))
+* point comments at documents readers can actually open ([9b97d5b](https://github.com/angel291592/caddiff/commit/9b97d5b3d16b8d22a7be8e4c40fb03c419f1717c))
+* **readme:** complete the Ubuntu 24.04 install steps ([4ff87a4](https://github.com/angel291592/caddiff/commit/4ff87a417bb86e4febf47d97ed0718ff22febb0e))
+* **readme:** the roadmap covers the released v0.4 line ([755ae96](https://github.com/angel291592/caddiff/commit/755ae966e76e5a027912ecf4f7197fdb74e87d16))
+* **release:** bump the pinned image/action tags to v0.4.1 ([2e5b611](https://github.com/angel291592/caddiff/commit/2e5b61130cd3e3d914f46eff70bd4f82427d2ddb))
+
 ## [0.4.1](https://github.com/angel291592/caddiff/compare/v0.4.0...v0.4.1) (2026-10-20)
 
 
