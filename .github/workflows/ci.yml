@@ -166,6 +166,26 @@ jobs:
             exit 1
           fi
 
+      # The contract has three exits, but only 0 (asserted inside the image build)
+      # and 1 (the step above) were ever exercised end to end. Exit 2 is the one
+      # that must survive the shell wrapper: `xvfb-run` re-exits the child's status
+      # on the healthy path, but its own failure paths replace it. A missing input
+      # is the cheapest reachable path to 2, and it pins "could not run" so a
+      # wrapper change cannot quietly turn it into "differences found".
+      - name: Exit code 2 survives the container entrypoint
+        run: |
+          set +e
+          docker run --rm -v "$GITHUB_WORKSPACE:/data" -w /data "$IMAGE" \
+            diff /data/examples/fixtures/does-not-exist-old.stp \
+                 /data/examples/fixtures/does-not-exist-new.stp \
+                 -o /data/report-exit2 --lang en
+          code=$?
+          set -e
+          if [ "$code" -ne 2 ]; then
+            echo "::error::expected exit code 2 (execution failure) for a missing input, got $code (0 = no differences, 1 = differences found)"
+            exit 1
+          fi
+
       # The image-content gate inside the next step has to decode PNGs; the stdlib
       # cannot, and this job otherwise needs nothing beyond the pulled image.
       - name: Install Pillow for the image-content gate
