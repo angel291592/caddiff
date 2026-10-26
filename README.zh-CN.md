@@ -45,11 +45,11 @@
 ### Docker（推荐 —— 无需安装任何东西）
 
 ```console
-$ docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.4.1 \
+$ docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.4.2 \
     diff /data/old.stp /data/new.stp -o /data/report
 ```
 
-`v0.4.1` 是已发布的镜像。另有一个 `edge` tag 跟着 `main`，供想
+`v0.4.2` 是已发布的镜像。另有一个 `edge` tag 跟着 `main`，供想
 踩在最新代码上的人用 —— 但凡是你要给 CI 当闸门用的地方，请钉住一个已发布的 tag（或 digest）。
 
 ### 本地安装
@@ -103,12 +103,12 @@ $ git difftool -t caddiff HEAD~1 -- bracket.stp
 对你仓库里的两个文件跑一次 diff，并把报告目录作为 workflow artifact 上传：
 
 ```yaml
-- uses: angel291592/caddiff@v0.4.1
+- uses: angel291592/caddiff@v0.4.2
   id: caddiff
   with:
     old: models/base.stp
     new: models/pr.stp
-    image: ghcr.io/angel291592/caddiff:v0.4.1
+    image: ghcr.io/angel291592/caddiff:v0.4.2
 
 - name: 响应差异
   if: steps.caddiff.outputs.has-differences == 'true'
@@ -119,7 +119,7 @@ $ git difftool -t caddiff HEAD~1 -- bracket.stp
 这个 Action 只在退出码 2（caddiff 未能运行）时失败；退出码 1（检出差异）是一个结果，
 报告照常上传。
 
-`image:` 是特意写出来的：`@v0.4.1` 解析到的是 `v0.4.1` tag 上的 `action.yml`，
+`image:` 是特意写出来的：`@v0.4.2` 解析到的是 `v0.4.2` tag 上的 `action.yml`，
 而那个 tag 里的默认值被冻结在**上一个**版本 —— 不写这行，action 与几何内核就会跑在两个版本上。
 规则与上面的 `docker run` 一致：钉镜像，不钉分支。
 
@@ -175,7 +175,7 @@ report/
 ```yaml
 - name: 检查几何差异
   run: |
-    docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.4.1 \
+    docker run --rm -v "$PWD:/data" ghcr.io/angel291592/caddiff:v0.4.2 \
       diff /data/base.stp /data/pr.stp -o /data/report
 ```
 
