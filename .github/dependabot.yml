@@ -1,0 +1,21 @@
+# Keep the GitHub Actions used by these workflows current.
+#
+# WHY THIS EXISTS: the workflows are the release path (image, PyPI, Pages), and a
+# stale action means a stale Node runtime and missed security fixes. Manual bumps
+# had already drifted — `ci.yml` was on `checkout@v7` while three other workflows
+# were still on `v5`. One grouped monthly pull request keeps the review cost to a
+# single merge instead of one merge per action.
+#
+# SCOPE: GitHub Actions only. This package itself has zero runtime dependencies
+# (see pyproject.toml), so there is nothing else for Dependabot to watch.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns:
+          - "*"
