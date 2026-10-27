@@ -22,6 +22,14 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.4.3](https://github.com/angel291592/caddiff/compare/v0.4.2...v0.4.3) (2026-10-27)
+
+
+### Documentation
+
+* **docker:** correct the xvfb-run readiness story, drop the x11-utils claim ([1c25491](https://github.com/angel291592/caddiff/commit/1c254912f745c2494ab933516504c8b76c6e49b6))
+* **release:** bump the pinned image/action tags to v0.4.2 ([153075c](https://github.com/angel291592/caddiff/commit/153075c9738d5efa6eebd89267d9286c1a8b425b))
+
 ## [0.4.2](https://github.com/angel291592/caddiff/compare/v0.4.1...v0.4.2) (2026-10-21)
 
 
