@@ -70,14 +70,14 @@ FreeCAD 的 **GUI 应用**，把脚本交给它会启动界面并**永不返回*
 `PYTHONPATH`」才是能用的写法，Docker 镜像也是这么配的（见 [`docs/pipeline.md`](https://github.com/angel291592/caddiff/blob/main/docs/pipeline.md)）。
 
 Ubuntu 24.04 的官方软件源里没有 `freecad` 包，需要先加 FreeCAD 的 PPA。渲染要有显示环境，
-无显示器的机器用 Xvfb 提供。其中 `x11-utils` **不是可选项**：`xvfb-run` 靠 `xdpyinfo`
-轮询等待 X server 就绪，缺了它命令会一直卡住、Python 根本没机会启动（所以
-[`deploy/Dockerfile`](deploy/Dockerfile) 里也是显式安装的）：
+无显示器的机器用 Xvfb 提供。不需要额外的 X 客户端工具：24.04 的 `xvfb-run` 用 `USR1`
+握手等待 X server 就绪，不靠 `xdpyinfo` 轮询（实测：把 `xdpyinfo` 从镜像里移走，完整
+diff 仍 exit 1、报告与图片齐全）：
 
 ```console
 $ sudo apt install -y software-properties-common   # 精简镜像里 add-apt-repository 由它提供
 $ sudo add-apt-repository -y ppa:freecad-maintainers/freecad-stable
-$ sudo apt install -y freecad xvfb x11-utils python3-venv
+$ sudo apt install -y freecad xvfb python3-venv
 $ xvfb-run -a caddiff diff old.stp new.stp -o report
 ```
 

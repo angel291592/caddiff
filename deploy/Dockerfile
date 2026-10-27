@@ -46,10 +46,12 @@ ENV LANG=C.UTF-8 \
 # ── 系统依赖 ─────────────────────────────────────────────────────────────
 # freecad            几何内核 + FreeCAD 模块（LGPL / 部分 GPL，见 THIRD_PARTY_LICENSES.md）
 # xvfb               无显示环境下提供虚拟 X display —— 渲染必须要有真实 GUI 视口
-# x11-utils          **xvfb-run 的硬依赖**：它靠 `xdpyinfo` 轮询判断 X server 是否就绪，
-#                    缺了它 xvfb-run 会永远卡在等待循环里——Xvfb 起来了、python 却从未被
-#                    启动，容器 CPU 0%、零输出、不退出（实测第一次真实运行镜像即踩到）。
-#                    这条依赖不会在 `apt install xvfb` 时自动带进来。
+# x11-utils          **不是** xvfb-run 的依赖：Ubuntu 24.04 的 xvfb-run 用 `trap : USR1`
+#                    + `wait` 等 Xvfb 报就绪，全文 0 处 `xdpyinfo`；把 `xdpyinfo` 从镜像里
+#                    移走再跑完整 `caddiff diff`，仍是 exit 1、报告与图片齐全（实测）。
+#                    第一次真实运行镜像的挂死真因是入口用了 `exec xvfb-run`——xvfb-run 成了
+#                    PID 1，Xvfb 不向 PID 1 父进程发就绪信号，与 x11-utils 无关。
+#                    保留安装是历史遗留；删除它需要在重建镜像后复核。
 # libgl1-mesa-dri / libglu1-mesa   软件渲染（容器里没有 GPU）
 # fonts-noto-cjk     中文产出物需要；缺失时图上会出豆腐块且**不报错**
 # python3-numpy / python3-pil      渲染打分与画框用；必须装进 FreeCAD 解释器能看到的路径

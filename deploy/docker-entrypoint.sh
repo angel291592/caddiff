@@ -12,10 +12,12 @@
 #     `exec` 会让 xvfb-run 变成容器的 **PID 1**，于是它挂死——Xvfb 起来了、子进程 python3
 #     从未被启动、容器 CPU 0%、日志全空、永不退出。同一命令去掉 `exec`（shell 留在 PID 1，
 #     xvfb-run 当子进程）立刻成功退出。
-#     机制（**推断**，未逐行验证）：xvfb-run 靠 `trap : USR1` + `wait` 等 Xvfb 报就绪，而
-#     `trap` 是在 fork 之后才装的；PID 1 对内核对「默认动作为终止」的信号是**直接丢弃**，
-#     就绪信号若落在装 trap 之前就永远丢了，`wait` 便无限等下去。非 PID 1 时同样的竞态会
-#     让 xvfb-run 直接死掉——所以这个坑只在容器入口处出现，特别隐蔽。
+#     机制（在镜像里实测 + X server 源码）：xvfb-run 靠 `trap : USR1` + `wait` 等 Xvfb 发
+#     就绪信号，trap 在 fork Xvfb **之前**就装好了（不是之后）；而 X server 只在「父进程
+#     PID > 1」时才发这个信号（源码 `RunFromSmartParent` 分支带 `ParentProcess > 1` 守卫）。
+#     `exec` 让 xvfb-run 成为 PID 1 后，Xvfb 的父进程就是 PID 1，就绪信号永远不会发出，
+#     `wait` 便无限等下去。对照实测：同一个脚本，父进程是 PID 1 时 `wait` 不返回，父进程
+#     不是 PID 1 时立刻返回。
 #     保留一个 shell 当 PID 1 还顺带负责回收子进程，这也是容器里通常推荐的形态。
 set -eu
 
