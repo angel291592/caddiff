@@ -22,6 +22,13 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.4.4](https://github.com/angel291592/caddiff/compare/v0.4.3...v0.4.4) (2026-10-30)
+
+
+### Documentation
+
+* **pipeline:** record the FreeCAD 26.3 end-to-end run the reporter confirmed ([59181c7](https://github.com/angel291592/caddiff/commit/59181c7b43fa7362461f275ddc27c3f48a15ed0b))
+
 ## [0.4.3](https://github.com/angel291592/caddiff/compare/v0.4.2...v0.4.3) (2026-10-27)
 
 
