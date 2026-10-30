@@ -77,7 +77,7 @@ OLD.stp, NEW.stp
 
 `deploy/Dockerfile` 把这条约束钉成了构建期断言，且断言的不只是 `-c` 能 import，还包括**脚本文件**能执行、以及虚拟显示下能取到 `ActiveView`——前一条正是用来拦住上面那个坑的（`freecad-python3` 能过 `-c`，但过不了「执行脚本文件」）。
 
-**FreeCAD 26 前向兼容（import 顺序是承重的，不是可以整理掉的坏味道）**：在 FreeCAD 26.3.0（conda-forge `freecad=2026.09.16`、Python 3.11、Ubuntu 24.04）上实测——以脚本方式执行（`__main__`）时 `import FreeCAD` 会清掉此前绑定的模块级名字（`os`、`sys` 幸存），于是旧顺序在 `FC_BIN, FC_LIB = fcenv.derive_bin_lib(FC_PYTHON)` 处报 `NameError: name 'fcenv' is not defined`，流水线在写出 `diff_manifest.json` 之前就退出 `2`。`geom_diff.py`、`render_diff.py`、`boolean_worker.py` 因此把所有其余模块放到 `import FreeCAD` **之后**绑定；那些带 `# noqa: E402` 的再导入块就是这条约束，**不要**把它们「整理」回文件顶部。FreeCAD 0.21（镜像）从不暴露这个问题，所以由 `tests/unit/test_freecad26_compat.py` 在不依赖 FreeCAD 的情况下钉住顺序。同一版本还会在图片与 `render_manifest.json` **已经落盘之后**、于 `Gui::View3DInventor` 的 teardown 崩溃；`render_diff.py` 因此在 `main()` 返回后立刻 flush stdout/stderr 并 `os._exit(0)` 跳过该 teardown——抛异常的路径仍然非零退出，且所有产物在该点之前已在 `run()` 内关闭。这条只是前向兼容：0.21 下行为不变。
+**FreeCAD 26 前向兼容（import 顺序是承重的，不是可以整理掉的坏味道）**：在 FreeCAD 26.3.0（conda-forge `freecad=2026.09.16`、Python 3.11、Ubuntu 24.04）上实测——以脚本方式执行（`__main__`）时 `import FreeCAD` 会清掉此前绑定的模块级名字（`os`、`sys` 幸存），于是旧顺序在 `FC_BIN, FC_LIB = fcenv.derive_bin_lib(FC_PYTHON)` 处报 `NameError: name 'fcenv' is not defined`，流水线在写出 `diff_manifest.json` 之前就退出 `2`。`geom_diff.py`、`render_diff.py`、`boolean_worker.py` 因此把所有其余模块放到 `import FreeCAD` **之后**绑定；那些带 `# noqa: E402` 的再导入块就是这条约束，**不要**把它们「整理」回文件顶部。FreeCAD 0.21（镜像）从不暴露这个问题，所以由 `tests/unit/test_freecad26_compat.py` 在不依赖 FreeCAD 的情况下钉住顺序。同一版本还会在图片与 `render_manifest.json` **已经落盘之后**、于 `Gui::View3DInventor` 的 teardown 崩溃；`render_diff.py` 因此在 `main()` 返回后立刻 flush stdout/stderr 并 `os._exit(0)` 跳过该 teardown——抛异常的路径仍然非零退出，且所有产物在该点之前已在 `run()` 内关闭。这条只是前向兼容：0.21 下行为不变。修复后 26.3.0 也已**端到端**实测（含 `--perf`），见坑 K3。
 
 ---
 
@@ -370,6 +370,9 @@ why 只在体积差超容差时降级：纯 bbox 变化（如旋转）没有体�
 
 **K2. 26.3 上，`render_diff.py` 在图片与 `render_manifest.json` 都已写完之后，于 `Gui::View3DInventor` 析构阶段崩溃——步骤非零退出，流水线把一次实际成功的运行报成 exit 2。**
 修法：`main()` 返回后 flush stdout/stderr 并 `os._exit(0)`。对本 CLI 而言跳过 `atexit` / 解释器 teardown 是安全的：所有产物在返回前都已关闭（`render_manifest.json` 走临时文件 + 原子替换）；抛异常时仍然非零退出，`run()` 内部 `sys.exit(EXIT_BLANK_PANEL)` 也照常传导。**不要改成用 `try/except` 包住 teardown**：崩溃发生在 Python 层之下的 GUI 关闭过程，没有异常可捕。
+
+**K3. 26.3.0 已端到端实测，含 `--perf`，不只是 import 顺序那一步。**
+由 @TayHCode 在 26.3.0（conda-forge 2026.09.16、Python 3.11、Linux、`xvfb-run`）上对 v0.4.1 回报：`caddiff diff moved_old.stp moved_new.stp -o out --perf` 退出码 `1`，无 `NameError`、无 teardown 崩溃。第 3 步（`perf_probe.py`）跑完并写出 `perf_snapshot.json` / `perf_diff.json`（体积 11840 → 11648 mm³，质心位移 0.212 mm）；几何层报 2 处差异（`shape_changed=1`、`moved=1`）；共写出 12 张 PNG 与 `render_manifest.json`、`diff_manifest.json`、`report.md` / `report.html`。具体是哪个 26.x 小版本引入的名字清除仍未追查，且只实测了 26.3.0。
 
 ---
 
