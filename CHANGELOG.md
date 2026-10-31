@@ -22,6 +22,13 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.4.5](https://github.com/angel291592/caddiff/compare/v0.4.4...v0.4.5) (2026-10-31)
+
+
+### Documentation
+
+* **release:** bump the pinned image/action tags to v0.4.4 ([d6d50ec](https://github.com/angel291592/caddiff/commit/d6d50ec23f5b0c269c0bbe69b4f917683f989de6))
+
 ## [0.4.4](https://github.com/angel291592/caddiff/compare/v0.4.3...v0.4.4) (2026-10-30)
 
 
