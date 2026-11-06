@@ -492,9 +492,9 @@ When the filenames are hashes you must pass `--label-old` / `--label-new` explic
 
 The `summary` block of `diff_manifest.json` is a **single entry point prepared for callers** — reading it is enough; there is no need to correlate other files (it only aggregates and never recomputes; every field comes from upstream artifacts, avoiding "summary and details disagreeing"):
 ```
-summary.diff_count                    number of diffs; 0 means none detected (a valid conclusion, not a failure)
-summary.by_change_type                {"shape_changed": N, "moved": M}
-summary.parts_with_diff[]             one per diff: base_name + change_type;
+summary.diff_count                    total BOM + geometry differences; 0 means none detected (a valid conclusion, not a failure)
+summary.by_change_type                {"shape_changed": N, "moved": M} (geometry-only detail)
+summary.parts_with_diff[]             one per geometry diff: base_name + change_type (geometry-only detail);
                                       shape_changed carries volume / share / added-removed / cluster count,
                                       moved carries translation_mm/rotation_deg
 summary.skipped_parts[]               parts that did not participate + reason

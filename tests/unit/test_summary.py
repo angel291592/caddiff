@@ -31,6 +31,7 @@ def test_all_parts_replaced_is_reported_as_differences(tmp_path):
                  manifest=[])
     assert s["bom_diff_count"] == 3
     assert s["geometry_diff_count"] == 0
+    assert s["diff_count"] == 3
     assert s["has_differences"] is True
 
 
@@ -40,6 +41,7 @@ def test_count_mismatch_alone_counts_as_a_difference(tmp_path):
                       "candidates": [{"base_name": "BOLT", "count_match": False},
                                      {"base_name": "PLATE", "count_match": True}]})
     assert s["bom_count_mismatch"] == ["BOLT"]
+    assert s["diff_count"] == 1
     assert s["has_differences"] is True
 
 
@@ -51,6 +53,7 @@ def test_no_differences_anywhere(tmp_path):
     assert s["has_differences"] is False
     assert s["bom_diff_count"] == 0
     assert s["geometry_diff_count"] == 0
+    assert s["diff_count"] == 0
     # 无差异的原因必须在契约的 summary 块里（单一入口承诺；无差异原因也写进 summary）
     assert s["reason"] == i18n.t("summary.no_geometry_diff")
 
@@ -72,9 +75,20 @@ def test_geometry_only_difference(tmp_path):
                             "removed_volume": 192.0, "added_volume": 0.0,
                             "cluster_count": 1}])
     assert s["geometry_diff_count"] == 1
+    assert s["diff_count"] == 1
     assert s["by_change_type"] == {"shape_changed": 1}
     assert s["has_differences"] is True
     assert s["parts_with_diff"][0]["base_name"] == "BRACKET"
+
+
+def test_mixed_bom_and_geometry_differences_are_totaled(tmp_path):
+    s = _summary(tmp_path,
+                 bom={"removed": ["OLD-A"], "added": [], "candidates": []},
+                 manifest=[{"base_name": "BRACKET", "change_type": "shape_changed"}])
+    assert s["diff_count"] == 2
+    assert s["bom_diff_count"] == 1
+    assert s["geometry_diff_count"] == 1
+    assert s["has_differences"] is True
 
 
 def test_moved_entry_carries_translation_not_volumes(tmp_path):

@@ -192,8 +192,8 @@ def build_summary(bom_json, geom_json, render_manifest, label_old="", label_new=
     except (OSError, ValueError):
         manifest = []
 
-    summary["diff_count"] = len(manifest)
     summary["geometry_diff_count"] = len(manifest)
+    summary["diff_count"] = summary["bom_diff_count"] + summary["geometry_diff_count"]
     for e in manifest:
         ctype = e.get("change_type") or "shape_changed"
         summary["by_change_type"][ctype] = summary["by_change_type"].get(ctype, 0) + 1

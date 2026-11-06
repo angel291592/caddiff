@@ -215,6 +215,11 @@ commit-derived bullets. Consequences:
 
 ## [Unreleased]
 
+### Fixed
+
+- `summary.diff_count` now includes BOM-level differences. This corrects the
+  value only; no field was renamed or removed, so the manifest schema is unchanged.
+
 ## [0.1.0]
 
 First public release.

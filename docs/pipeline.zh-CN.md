@@ -481,9 +481,9 @@ caddiff diff <OLD.stp> <NEW.stp> [选项]
 
 `diff_manifest.json` 的 `summary` 块是**为调用方准备的单一入口**，读它就够，不必再关联其他文件（它只汇总、不重算，字段全部取自上游产物，避免"摘要与明细不一致"）：
 ```
-summary.diff_count                    差异处数；0 即未检出差异（有效结论，不是失败）
-summary.by_change_type                {"shape_changed": N, "moved": M}
-summary.parts_with_diff[]             每处：base_name + change_type；
+summary.diff_count                    BOM + 几何差异总数；0 即未检出差异（有效结论，不是失败）
+summary.by_change_type                {"shape_changed": N, "moved": M}（仅几何差异明细）
+summary.parts_with_diff[]             每处几何差异：base_name + change_type（仅几何差异明细）；
                                       shape_changed 带体积/占比/增减料/簇数，
                                       moved 带 translation_mm/rotation_deg
 summary.skipped_parts[]               未参与比对的零件 + reason
