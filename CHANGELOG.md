@@ -219,6 +219,15 @@ commit-derived bullets. Consequences:
 
 - `summary.diff_count` now includes BOM-level differences. This corrects the
   value only; no field was renamed or removed, so the manifest schema is unchanged.
+- `CADDIFF_LANG` is honoured when no `--lang` flag is passed. Both entry points
+  resolve the language through `i18n.set_lang()`, which is where the environment
+  fallback lives, so a Docker/CI run that sets the variable once gets localised
+  artifacts. An explicit `--lang` still wins.
+- The standalone report falls back to `<manifest dir>/images/render_manifest.json`
+  when the absolute path recorded in the manifest cannot be read (a manifest copied
+  into another job), and warns on stderr instead of silently rendering a report with
+  no changes section. Image links now resolve from the recorded `images_dir`
+  instead of being hardcoded to `images/`.
 
 ## [0.1.0]
 

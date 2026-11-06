@@ -6,6 +6,7 @@
 import json
 import os
 import re
+import shutil
 import urllib.parse
 
 import i18n
@@ -290,3 +291,95 @@ def test_unlabelled_manifest_falls_back_to_the_shared_labels(tmp_path):
     assert _CJK.search(title_zh), "zh 回退文案必须是中文"
     assert title_zh in open(html_zh, encoding="utf-8").read()
     i18n.set_lang("en")  # 复位，避免污染其它测试
+
+
+def _copy_out_with_stale_paths(tmp_path):
+    """模拟 CI 归档场景：manifest 与 images/ 一起被拷走，文件里记的绝对路径已失效。"""
+    out, mp = _build_out(tmp_path)
+    copied = tmp_path / "copied"
+    shutil.copytree(out, copied)
+    manifest = json.loads((copied / "diff_manifest.json").read_text(encoding="utf-8"))
+    manifest["render_manifest"] = "/nonexistent/images/render_manifest.json"
+    manifest["images_dir"] = "/nonexistent/images"
+    (copied / "diff_manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    return copied
+
+
+def test_report_falls_back_to_the_sibling_render_manifest(tmp_path):
+    """记录路径失效时必须回退到 <manifest 同级>/images/render_manifest.json。
+
+    why：manifest 被单独拷进另一个 job 是 CI 的常规做法，而旧代码只认文件里记的绝对
+    路径——路径一失效，报告的「Geometric changes」整节连同全部图片一起静默消失，
+    摘要却仍写着有差异（正是本模块要避免的摘要与明细不一致）。
+    """
+    copied = _copy_out_with_stale_paths(tmp_path)
+    html_path, md_path = report.generate(str(copied / "diff_manifest.json"), lang="en")
+    md = open(md_path, encoding="utf-8").read()
+    html = open(html_path, encoding="utf-8").read()
+
+    assert "## Geometric changes" in md
+    assert md.count("![") == 2, md
+    assert html.count("<img") == 2, html
+
+    # 链接必须指回拷过来的那个 images/，而不是原目录或字面量 images/
+    for dest in re.findall(r"\]\(([^)\s]+)\)", md):
+        if not dest.endswith(".png"):
+            continue
+        resolved = os.path.normpath(
+            os.path.join(str(copied), urllib.parse.unquote(dest)))
+        assert os.path.isfile(resolved), f"链接指不到真实文件：{dest} -> {resolved}"
+
+
+def test_report_warns_when_the_render_manifest_cannot_be_found(tmp_path, capsys):
+    """回退也读不到时不许静默交出一份「有差异但没有明细」的报告。"""
+    copied = _copy_out_with_stale_paths(tmp_path)
+    shutil.rmtree(copied / "images")
+    report.generate(str(copied / "diff_manifest.json"), lang="en")
+    assert "no readable render manifest" in capsys.readouterr().err
+
+    md = (copied / "report.md").read_text(encoding="utf-8")
+    assert "## Geometric changes" not in md
+
+
+def test_image_links_follow_the_recorded_images_dir(tmp_path):
+    """图片目录不在报告目录下时，链接必须按 manifest 记录的位置解析，而不是写死 images/。"""
+    out, mp = _build_out(tmp_path)
+    moved = tmp_path / "archive" / "pics"
+    shutil.move(str(out / "images"), str(moved))
+    manifest = json.loads(mp.read_text(encoding="utf-8"))
+    manifest["images_dir"] = str(moved)
+    manifest["render_manifest"] = str(moved / "render_manifest.json")
+    mp.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+    _html_path, md_path = report.generate(str(mp), lang="en")
+    md = open(md_path, encoding="utf-8").read()
+    dests = [d for d in re.findall(r"\]\(([^)\s]+)\)", md) if d.endswith(".png")]
+    assert len(dests) == 2, md
+    for dest in dests:
+        resolved = os.path.normpath(
+            os.path.join(str(out), urllib.parse.unquote(dest)))
+        assert os.path.isfile(resolved), f"链接指不到真实文件：{dest} -> {resolved}"
+
+
+def test_caddiff_lang_env_var_switches_the_standalone_report(tmp_path, monkeypatch):
+    """CADDIFF_LANG 是公开契约：不传 --lang 时报告入口也必须吃它。
+
+    why：`--lang` 缺省是 None，旧代码 `if lang: set_lang(lang)` 于是从不调用 set_lang，
+    而环境变量兜底恰恰在 set_lang→normalize_lang 里——Docker/CI 设一次变量的用法失效。
+    """
+    _out, mp = _build_out(tmp_path)
+    monkeypatch.setenv("CADDIFF_LANG", "zh")
+    i18n.set_lang("en")
+    try:
+        html_path, _ = report.generate(str(mp))  # 故意不传 lang
+        assert _CJK.search(open(html_path, encoding="utf-8").read())
+    finally:
+        i18n.set_lang("en")
+
+
+def test_explicit_lang_beats_the_env_var_in_the_report(tmp_path, monkeypatch):
+    _out, mp = _build_out(tmp_path)
+    monkeypatch.setenv("CADDIFF_LANG", "zh")
+    html_path, _ = report.generate(str(mp), lang="en")
+    assert not _CJK.search(open(html_path, encoding="utf-8").read())

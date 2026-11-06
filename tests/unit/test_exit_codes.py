@@ -167,3 +167,40 @@ def test_an_unexpected_internal_error_still_exits_2(monkeypatch, capsys):
     assert cli.main(["diff", "a.stp", "b.stp", "-o", "out"]) == cli.EXIT_ERROR == 2
     # 退出码纠正的同时不能把排查信息丢掉
     assert "simulated internal failure" in capsys.readouterr().err
+
+
+def test_lang_env_var_reaches_the_pipeline_entry_point(tmp_path, monkeypatch):
+    """CADDIFF_LANG 必须在参数校验之前被入口解析，否则 Docker/CI 设一次变量也不生效。
+
+    why：`--lang` 缺省为 None，旧代码 `if lang: set_lang(lang)` 从不调用 set_lang，
+    而环境变量兜底就在 set_lang→normalize_lang 里。这里用「输入文件不存在」这条最早
+    的失败路径观测 i18n 状态——它证明解析发生在任何子步骤之前。
+    """
+    import i18n
+
+    monkeypatch.setenv("CADDIFF_LANG", "zh")
+    i18n.set_lang("en")
+    try:
+        with pytest.raises(run_pipeline.PipelineError):
+            run_pipeline.run_diff(str(tmp_path / "nope-old.stp"),
+                                  str(tmp_path / "nope-new.stp"),
+                                  str(tmp_path / "out"))
+        assert i18n.get_lang() == "zh"
+    finally:
+        i18n.set_lang("en")
+
+
+def test_explicit_lang_beats_the_env_var_in_the_pipeline(tmp_path, monkeypatch):
+    """显式 --lang 必须压过环境变量（docs/pipeline.md 的约定：参数优先）。"""
+    import i18n
+
+    monkeypatch.setenv("CADDIFF_LANG", "zh")
+    i18n.set_lang("zh")
+    try:
+        with pytest.raises(run_pipeline.PipelineError):
+            run_pipeline.run_diff(str(tmp_path / "nope-old.stp"),
+                                  str(tmp_path / "nope-new.stp"),
+                                  str(tmp_path / "out"), lang="en")
+        assert i18n.get_lang() == "en"
+    finally:
+        i18n.set_lang("en")

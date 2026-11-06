@@ -266,8 +266,10 @@ def run_diff(stp_old, stp_new, output_dir,
     ``<out>/perf_snapshot.json`` 与 ``<out>/perf_diff.json``，并写进 summary 的
     ``performance_diff`` 键。它**不参与**退出码判定：性能数字永不翻转 0→1。
     """
-    if lang:
-        i18n.set_lang(lang)
+    # 语言必须在入口一次解析完：--lang 缺省时 normalize_lang() 会去读 CADDIFF_LANG，
+    # 而「lang 为 None 就跳过 set_lang()」会让环境变量永远不生效——Docker/CI 用户按
+    # docs/pipeline.md 里的公开契约设一次变量，本该得到本地化产物。
+    i18n.set_lang(lang)
     # 校验先于「这些参数会被忽略」的提示：否则 `--perf-budget 0` 会先说"忽略它"、紧接着又
     # 因为它退出码 2——两句话互相矛盾。
     if perf_tol is not None and perf_tol < 0.0:

@@ -75,13 +75,20 @@ def _images_dir(manifest):
     return os.path.join(os.path.dirname(os.path.abspath(manifest.get("_path", ""))), "images")
 
 
-def _image_rel(image_dir, filename):
-    """报告与图片的相对路径：报告在 <out>/report.html，图片在 <out>/images/。"""
-    if not filename:
-        return None
-    if not os.path.isabs(image_dir):
-        return f"images/{filename}"
-    return filename  # 调用方给的是绝对路径时不改写，交给渲染层处理
+def _relative_dir(base_dir, target_dir):
+    """``target_dir`` 相对 ``base_dir`` 的 posix 路径；同一目录返回空串。
+
+    why 不能用固定的 ``images/``：报告写在 manifest 所在目录，而 ``images_dir`` 记的是
+    绝对路径。manifest 被拷进另一个 job 后（CI 归档/传参），图片目录可能仍在原处、
+    也可能跟着一起被拷走——按实际位置算相对路径，两种情况都能指到文件。
+    """
+    try:
+        rel = os.path.relpath(target_dir, base_dir)
+    except ValueError:  # Windows：跨盘符算不出相对路径
+        rel = "images"
+    if rel in (".", ""):
+        return ""
+    return rel.replace(os.sep, "/")
 
 
 def _image_url(filename):
@@ -100,6 +107,37 @@ def _image_url(filename):
     另几种触发条件，不是另一件事。
     """
     return urllib.parse.quote(filename, safe="")
+
+
+def _image_dest(image_prefix, filename):
+    """图片引用目的地：``<相对图片目录>/<编码后的文件名>``；目录为空时只有文件名。"""
+    url = _image_url(filename)
+    return f"{image_prefix}/{url}" if image_prefix else url
+
+
+def _load_entries(manifest, image_dir):
+    """读逐处差异清单（``render_manifest.json``），记录路径失效时回退到同级 ``images/``。
+
+    why 要有回退：manifest 会被单独拷进另一个 job，此时文件里记的绝对路径已经不存在，
+    而 ``images/`` 常常跟着 manifest 一起被拷走。只认绝对路径的后果不是报错，而是报告里
+    「几何变化」整节消失、摘要却说有 N 处——正是本模块要避免的摘要与明细不一致。
+    """
+    recorded = manifest.get("render_manifest")
+    entries = _load_json(recorded, []) if recorded else []
+    if not isinstance(entries, list):
+        entries = []
+    if not entries:
+        fallback = os.path.join(image_dir, "render_manifest.json")
+        if os.path.abspath(fallback) != os.path.abspath(recorded or ""):
+            fallback_entries = _load_json(fallback, [])
+            if isinstance(fallback_entries, list) and fallback_entries:
+                entries = fallback_entries
+    if not entries and (manifest.get("summary") or {}).get("geometry_diff_count"):
+        # 连回退也读不到：宁可出一句警告，也不要让「摘要说有差异、正文什么都没有」静默通过
+        print("WARNING: no readable render manifest — per-diff changes and their images "
+              "are omitted from the report; point render_manifest/images_dir in the "
+              "manifest at the files' current location", file=sys.stderr)
+    return entries
 
 
 def _change_title(entry, t):
@@ -379,7 +417,7 @@ def _perf_section_html(summary, t):
 
 # ────────────────────────────── Markdown ──────────────────────────────
 
-def render_markdown(manifest, entries, t):
+def render_markdown(manifest, entries, t, image_prefix="images"):
     s = manifest.get("summary") or {}
     out = []
     # 无版本标签时回退到 i18n 的 Old/New——与 build_pptx 同一条约定。这个位置承载的是
@@ -429,7 +467,7 @@ def render_markdown(manifest, entries, t):
                 fn = entry.get(panel)
                 if fn:
                     out.append(f"![{_change_title(entry, t)} — {t('report.panel.' + panel)}]"
-                               f"(images/{_image_url(fn)})")
+                               f"({_image_dest(image_prefix, fn)})")
                     out.append("")
 
     honesty = _honesty_items(s, t)
@@ -498,7 +536,7 @@ footer { margin-top:3rem; color:var(--muted); font-size:.85rem; border-top:1px s
 """
 
 
-def render_html(manifest, entries, t):
+def render_html(manifest, entries, t, image_prefix="images"):
     s = manifest.get("summary") or {}
     has = bool(s.get("has_differences"))
     # 回退规则同 render_markdown；HTML 侧的文件名由下一行的副标题另行给出。
@@ -557,9 +595,10 @@ def render_html(manifest, entries, t):
             if shots:
                 p.append('<div class="shots">')
                 for panel, fn in shots:
-                    p.append('<figure><img loading="lazy" src="images/%s" alt="%s">'
+                    p.append('<figure><img loading="lazy" src="%s" alt="%s">'
                              '<figcaption>%s</figcaption></figure>'
-                             % (_image_url(fn), _esc(_change_title(entry, t)),
+                             % (_esc(_image_dest(image_prefix, fn)),
+                                _esc(_change_title(entry, t)),
                                 _esc(t("report.panel." + panel))))
                 p.append("</div>")
 
@@ -596,8 +635,9 @@ def _bom_rows(summary, t):
 
 def generate(manifest_path, lang=None):
     """读 manifest，写出 ``report.html`` 与 ``report.md``。返回两者的绝对路径。"""
-    if lang:
-        i18n.set_lang(lang)
+    # 与 run_pipeline.run_diff 同一条约定：lang 缺省时也要让 CADDIFF_LANG 兜底生效。
+    # （环境变量的解析在 normalize_lang() 里，跳过 set_lang() 就等于把它永远关掉。）
+    i18n.set_lang(lang)
     t = i18n.t
 
     manifest_path = os.path.abspath(manifest_path)
@@ -607,19 +647,17 @@ def generate(manifest_path, lang=None):
     manifest["_path"] = manifest_path
 
     image_dir = _images_dir(manifest)
-    render_manifest = manifest.get("render_manifest")
-    entries = _load_json(render_manifest, []) if render_manifest else []
-    if not isinstance(entries, list):
-        entries = []
+    entries = _load_entries(manifest, image_dir)
 
     out_dir = os.path.dirname(manifest_path)
+    image_prefix = _relative_dir(out_dir, image_dir)
     html_path = os.path.join(out_dir, "report.html")
     md_path = os.path.join(out_dir, "report.md")
 
     with open(html_path, "w", encoding="utf-8") as f:
-        f.write(render_html(manifest, entries, t))
+        f.write(render_html(manifest, entries, t, image_prefix))
     with open(md_path, "w", encoding="utf-8") as f:
-        f.write(render_markdown(manifest, entries, t))
+        f.write(render_markdown(manifest, entries, t, image_prefix))
 
     print(f"Report written: {html_path}")
     print(f"Report written: {md_path}")
