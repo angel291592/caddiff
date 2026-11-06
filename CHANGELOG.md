@@ -22,6 +22,20 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.4.5](https://github.com/angel291592/caddiff/compare/v0.4.4...v0.4.5) (2026-11-06)
+
+
+### Bug Fixes
+
+* **pipeline:** count BOM-level differences in summary.diff_count ([#19](https://github.com/angel291592/caddiff/issues/19)) ([31a112d](https://github.com/angel291592/caddiff/commit/31a112d1230c03a62af32f19b60a19624b60893b)), closes [#18](https://github.com/angel291592/caddiff/issues/18)
+* **report:** honour CADDIFF_LANG and keep reports complete after a manifest move ([0e9b062](https://github.com/angel291592/caddiff/commit/0e9b0621dc0923b5bad77c12cb6ebab9680f7065))
+
+
+### Documentation
+
+* **pipeline:** record P1 pairing correctness as implemented and measured ([af5c044](https://github.com/angel291592/caddiff/commit/af5c044b7deea7224876acf36222cdee4fa9f46d))
+* **release:** bump the pinned image/action tags to v0.4.4 ([d6d50ec](https://github.com/angel291592/caddiff/commit/d6d50ec23f5b0c269c0bbe69b4f917683f989de6))
+
 ## [0.4.4](https://github.com/angel291592/caddiff/compare/v0.4.3...v0.4.4) (2026-10-30)
 
 
