@@ -211,6 +211,10 @@ def build_summary(bom_json, geom_json, render_manifest, label_old="", label_new=
             # 读者若不知道就会把"整件都变了"当成真实结论。只在真的降级时才出现。
             if e.get("degraded_reason"):
                 item["degraded_reason"] = e["degraded_reason"]
+            # 单侧差异（issue #22）：零件只存在于一个版本，另一个版本没有对应件。
+            # 与 degraded_reason 同理，必须进 summary，否则「没提到」会被读成「没差异」。
+            if e.get("one_sided"):
+                item["one_sided"] = e["one_sided"]
         summary["parts_with_diff"].append(item)
 
     try:

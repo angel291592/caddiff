@@ -383,3 +383,43 @@ def test_explicit_lang_beats_the_env_var_in_the_report(tmp_path, monkeypatch):
     monkeypatch.setenv("CADDIFF_LANG", "zh")
     html_path, _ = report.generate(str(mp), lang="en")
     assert not _CJK.search(open(html_path, encoding="utf-8").read())
+
+
+def _build_one_sided_out(tmp_path):
+    """单侧差异的产物：零件只存在于一个版本，缺失侧**不生成**特写图（issue #22）。"""
+    out, mp = _build_out(tmp_path)
+    rm_path = out / "images" / "render_manifest.json"
+    entries = json.loads(rm_path.read_text(encoding="utf-8"))
+    entries[0].update({
+        "one_sided": "new_only",
+        "degraded_reason": "unpaired_after_proximity",
+        "volume_delta": None,
+        "volume_delta_pct": None,
+        "removed_volume": 0.0,
+        "added_volume": 192.0,
+        "cluster_details": [{"index": 1, "role": "added", "volume": 192.0,
+                             "size_mm": [4.0, 12.0, 4.0]}],
+    })
+    rm_path.write_text(json.dumps(entries), encoding="utf-8")
+    return out, mp
+
+
+def test_one_sided_change_names_the_missing_counterpart(tmp_path):
+    """单侧差异必须在报告里写清缺的是哪一版，且不得拿空白图冒充证据。
+
+    why：geom_diff 把「只存在于一个版本」的零件当受支持的降级上报，渲染层只渲染
+    存在的一侧、不生成缺失侧的图。三条信息缺一不可——「对应件」这一行、降级的
+    「整个零件」说明、以及**不出现**缺失侧图片（出现了就说明有人重新生成了空图）。
+    """
+    out, mp = _build_one_sided_out(tmp_path)
+    html_path, md_path = report.generate(str(mp), lang="en")
+    html_text = open(html_path, encoding="utf-8").read()
+    md_text = open(md_path, encoding="utf-8").read()
+
+    for text in (html_text, md_text):
+        assert "Counterpart" in text
+        assert "not present in v1" in text          # 缺失侧是旧版，必须点名 v1
+        assert "whole part" in text                 # 降级高亮口径与 HTML/MD 一致
+        assert "closeup_old" not in text            # 缺失侧没有图，报告也不许引用
+
+    _ = out

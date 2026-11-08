@@ -117,6 +117,11 @@ $ python tools/scan_sensitive.py --staged   # what a commit would add
   对象。新增字段没有问题;对字段改名或移除则属于破坏性变更。
 - 不要静默失败。如果某一步被跳过、降级或回退到某个启发式,这一点必须体现在
   输出中,而不能只存在于日志里。
+- **同一句免责说明必须出现在每一个产物里。** 差异记录带 `degraded_reason`(或
+  `one_sided`)时,报告 HTML、报告 Markdown 与 PPTX deck 都要各自写出来。只有一份
+  产物带、另外两份不带,读者会读到互相矛盾的结论——而 deck 恰恰是最容易被截图传播
+  的那份。`tests/unit/test_report.py` 与 `tests/unit/test_build_pptx.py` 守着这两条
+  产物路径。
 - 最终写进产物的文本(图片标注、报告正文、manifest 的 reason 字符串)都必须
   经过 i18n 表——见 `caddiff/i18n.py` 顶部的说明。`en` 与 `zh` 两种条目都要
   添加;只补其中一种的改动是不完整的。控制台进度输出直接写成英文,不经过该表。

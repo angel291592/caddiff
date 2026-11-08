@@ -1031,6 +1031,43 @@ def precompute_shapes(actual_diffs, label_map, old_label_map):
                      "clusters": [], "new_obj": new_obj,
                      "change_type": change.get("change_type", "shape_changed")}
 
+            # 单侧孤儿：geom_diff 的 _pair_orphans 会把「只存在于一个版本」的零件按
+            # 受支持的降级上报（degraded_reason=unpaired_after_proximity，缺失侧的
+            # label/volume/bbox_old 为 None）。旧实现在这里直接跳过高亮，缺失侧的特写图
+            # 随后必然全白，全白守卫把一次合法降级升级成 exit 2（issue #22）。
+            # 现在保留存在侧的形状 + 整件高亮，并把 one_sided 写进记录：渲染层只渲染
+            # 存在的一侧，缺失侧由报告/PPT 用文字明确说明「该版本没有对应件」。
+            one_sided = None
+            if old_obj is None and new_obj is not None and not old_label:
+                one_sided = "new_only"
+            elif new_obj is None and old_obj is not None and not new_label:
+                one_sided = "old_only"
+
+            if one_sided:
+                shape = get_shape(new_obj if one_sided == "new_only" else old_obj)
+                if shape is None or shape.isNull():
+                    print(f"  !! {bn}: one-sided part {old_label or new_label!r} has no "
+                          f"usable shape; skipping highlight")
+                    results[key] = entry
+                    continue
+                clusters, dropped = split_clusters(shape)
+                role = "added" if one_sided == "new_only" else "removed"
+                for i, c in enumerate(clusters, 1):
+                    c["index"] = i
+                    c["role"] = role
+                if one_sided == "new_only":
+                    entry.update({"new_shape": shape, "added": shape,
+                                  "diff_shape": shape})
+                else:
+                    entry.update({"old_shape": shape, "removed": shape,
+                                  "diff_shape": shape})
+                entry.update({"clusters": clusters, "one_sided": one_sided,
+                              "degraded_reason": change.get("degraded_reason")})
+                print(f"  {bn}: ONE-SIDED ({one_sided}) — whole-part highlight; "
+                      f"{len(clusters)} cluster(s), {dropped} fragment(s) filtered")
+                results[key] = entry
+                continue
+
             if old_obj is None or new_obj is None:
                 print(f"  !! {bn}: object not found old={old_label}({old_obj is not None}) "
                       f"new={new_label}({new_obj is not None}); skipping highlight")
@@ -1413,6 +1450,183 @@ def render_one(md, av, doc, output_dir, bn, idx, change, bbox,
         bh = add_direction_banner(os.path.join(output_dir, fname), title, vec, axes)
     # 带高随图宽变化（字号按比例推导），下游要读这个字段而不是自己写死常量——
     # 任何"读加带后图片并与 bbox_2d 比对"的代码都必须把 y 下移 banner_h。
+    rec["banner_h"] = bh
+
+    return rec
+
+
+def render_one_sided(md, av, doc, output_dir, bn, idx, change, bbox,
+                     new_obj, feats, injected_names, pre, self_names,
+                     label_old=None, label_new=None):
+    """渲染「只存在于一个版本」的差异（另一侧缺件）。
+
+    why 是独立分支而不是塞进 render_one：geom_diff 的 _pair_orphans 把单侧孤儿当
+    **受支持的降级**上报（degraded_reason=unpaired_after_proximity），但旧实现让它走
+    render_one，缺失侧的特写图必然全白，全白守卫于是把一次合法降级升级成 exit 2
+    （issue #22）。这里只渲染存在的一侧；缺失侧**不生成图片**——绝不用空白图冒充差异
+    证据——由报告/PPT 的文字说明该版本没有对应件。
+
+    why 只开一次相机：单侧差异没有"新旧位置"可比，一次等轴取景即可覆盖整件。
+    """
+    label_old = label_old or t("label.old")
+    label_new = label_new or t("label.new")
+    one_sided = pre["one_sided"]
+    new_only = one_sided == "new_only"
+    side = "new" if new_only else "old"
+    side_label = label_new if new_only else label_old
+    rec = {"base_name": bn, "instance_index": change["instance_index"],
+           "change_type": change.get("change_type", "shape_changed"),
+           "label_old": label_old, "label_new": label_new,
+           "one_sided": one_sided}
+    # 降级标记（坑 J2）：与双侧整件降级同一字段，一路传到报告/PPT 的免责说明。
+    if change.get("degraded_reason"):
+        rec["degraded_reason"] = change["degraded_reason"]
+
+    clusters = pre.get("clusters") or []
+    rec["cluster_count"] = len(clusters)
+    rec["cluster_details"] = [
+        {"index": c["index"], "role": c["role"],
+         "volume": c["volume"], "size_mm": c["size_mm"]}
+        for c in clusters
+    ]
+
+    # === (a) 整体定位图 ===
+    print("  Rendering overview image (scanning candidate view directions)...")
+    setup_overview_state(md, doc, injected_names, self_names, feats.get("diff"))
+    FreeCADGui.updateGui()
+
+    scan_tmp = os.path.join(output_dir, f".scan_{bn}_{idx}.png")
+    dir_tag, dir_vec, dir_detail, dir_rows = pick_best_direction(av, bbox, scan_tmp)
+    try:
+        os.remove(scan_tmp)
+    except OSError:
+        pass
+    print(f"    Selected view {dir_tag} (score={dir_detail['score']:.4f} "
+          f"magenta_in_box={dir_detail['sat_in']} "
+          f"readability={dir_detail['readability']})")
+    if dir_detail.get("fallback"):
+        print(f"    !! {bn}: no readable direction shows the diff highlight; the overview "
+              f"reports the change by its red box only")
+    elif dir_detail["sat_in"] == 0:
+        print(f"    !! WARNING: {bn} shows no diff highlight in any of the "
+              f"{len(VIEW_DIRECTIONS)} candidate directions")
+
+    av.setViewDirection(dir_vec)
+    FreeCADGui.updateGui()
+    av.fitAll()
+    FreeCADGui.updateGui()
+    time.sleep(1)
+
+    overview_path = os.path.join(output_dir, f"{bn}_{idx}_overview.png")
+    ov_size, bbox_2d = capture_and_project(av, overview_path, bbox)
+    ov_items = project_clusters(av, clusters, ov_size[1]) if clusters else [(bbox_2d, [])]
+    overview_axes = axis_screen_dirs(av)
+    overview_rect_path = os.path.join(output_dir, f"{bn}_{idx}_overview_rect.png")
+    ov_rects, line_w = draw_rects_on_image(overview_path, ov_items, overview_rect_path)
+    rec["overview"] = os.path.basename(overview_path)
+    rec["overview_rect"] = os.path.basename(overview_rect_path)
+    rec["bbox_2d"] = list(bbox_2d)
+    rec["rects_overview"] = [{"rect": [round(v, 1) for v in rect], "labels": labels}
+                             for rect, labels in ov_rects]
+    rec["rect_line_width_px"] = line_w
+    rec["magenta_px_overview"] = count_magenta(overview_rect_path)
+    rec["overview_view_dir"] = [round(v, 4) for v in dir_vec]
+    rec["overview_view_tag"] = dir_tag
+    rec["overview_view_score"] = dir_detail["score"]
+    rec["overview_sat_in"] = dir_detail["sat_in"]
+    rec["overview_sat_out"] = dir_detail["sat_out"]
+    rec["overview_view_fallback"] = bool(dir_detail.get("fallback"))
+    rec["overview_view_readability"] = dir_detail["readability"]
+    rec["overview_ecc"] = dir_detail["ecc"]
+    rec["overview_compose"] = dir_detail["compose"]
+    rec["overview_body_pct"] = dir_detail["body_pct"]
+    rec["overview_axis_dirs"] = {k: [round(c, 4) for c in v]
+                                 for k, v in overview_axes.items()}
+    print(f"    Overview magenta_px={rec['magenta_px_overview']}  rects={len(ov_rects)}")
+
+    # === (b) 存在侧特写图（缺失侧不生成图片）===
+    print(f"  Rendering {side}-version close-up "
+          f"(this part exists only in that revision)...")
+    hide_all_objects(md, doc)
+    if new_only:
+        if new_obj is not None:
+            show_with_ancestors(md, new_obj)
+            show_object_and_children(md, new_obj)
+            set_transparency_recursive(md, new_obj, TARGET_TRANSPARENCY)
+        highlight = feats.get("added")
+    else:
+        proxy = feats.get("old_proxy")
+        if proxy is not None:
+            vp = md.getObject(proxy.Name)
+            if vp is not None:
+                vp.Visibility = True
+                vp.Transparency = TARGET_TRANSPARENCY
+        highlight = feats.get("removed")
+    if highlight is not None:
+        set_highlight_style(md, highlight)
+    FreeCADGui.updateGui()
+    av.viewIsometric()
+    FreeCADGui.updateGui()
+    av.fitAll()
+    FreeCADGui.updateGui()
+    time.sleep(1)
+
+    x1, y1, x2, y2 = project_bbox(av, bbox)
+    zoom_pad = max(20, int(0.3 * max(x2 - x1, y2 - y1)))
+    av.boxZoom(int(x1 - zoom_pad), int(y1 - zoom_pad),
+               int(x2 + zoom_pad), int(y2 + zoom_pad))
+    FreeCADGui.updateGui()
+    time.sleep(1)
+
+    closeup_path = os.path.join(output_dir, f"{bn}_{idx}_closeup_{side}.png")
+    closeup_size, bbox_2d_closeup = capture_and_project(av, closeup_path, bbox)
+    cu_items = (project_clusters(av, clusters, closeup_size[1]) if clusters
+                else [(bbox_2d_closeup, [])])
+    closeup_axes = axis_screen_dirs(av)
+    closeup_dir_vec = tuple(av.getViewDirection())
+    if not check_image_nonblank(closeup_path):
+        note_render_defect(rec, os.path.basename(closeup_path),
+                           "one-sided close-up is all white; check the "
+                           "visibility/highlight logic")
+    closeup_rect = os.path.join(output_dir, f"{bn}_{idx}_closeup_{side}_rect.png")
+    cu_rects, _ = draw_rects_on_image(closeup_path, cu_items, closeup_rect)
+    rec[f"closeup_{side}"] = os.path.basename(closeup_path)
+    rec[f"closeup_{side}_rect"] = os.path.basename(closeup_rect)
+    rec["bbox_2d_closeup"] = list(bbox_2d_closeup)
+    rec["rects_closeup"] = [{"rect": [round(v, 1) for v in rect], "labels": labels}
+                            for rect, labels in cu_rects]
+    rec[f"magenta_px_closeup_{side}"] = count_magenta(closeup_rect)
+    print(f"    {side.capitalize()} close-up "
+          f"magenta_px={rec[f'magenta_px_closeup_{side}']}")
+
+    # === (c) 数值字段 ===
+    # 单侧差异没有对称差：与双侧整件降级同一口径——存在侧整件体积记在对应方向，
+    # 缺失侧为 0（不是"没有变化"，而是"这一侧没有对应件"，由 one_sided 说明）。
+    rec["old_volume"] = change.get("old_volume")
+    rec["new_volume"] = change.get("new_volume")
+    rec["volume_delta"] = change.get("volume_delta")
+    rec["volume_delta_pct"] = change.get("volume_delta_pct")
+    rec["diff_bbox_size_mm"] = change.get("diff_bbox_size_mm")
+    removed = pre.get("removed")
+    added = pre.get("added")
+    rec["removed_volume"] = (removed.Volume
+                             if removed is not None and not removed.isNull() else 0.0)
+    rec["added_volume"] = (added.Volume
+                           if added is not None and not added.isNull() else 0.0)
+
+    # === (d) 方向标记带（F6：品红统计已在上面完成，加带必须在统计之后）===
+    rec["closeup_view_dir"] = [round(v, 4) for v in closeup_dir_vec]
+    rec["closeup_axis_dirs"] = {k: [round(c, 4) for c in v]
+                                for k, v in closeup_axes.items()}
+    banner_jobs = [
+        (rec["overview_rect"], t("banner.title.overview", tag=dir_tag),
+         dir_vec, overview_axes),
+        (rec[f"closeup_{side}_rect"],
+         t("banner.title.one_sided_" + side, label=side_label),
+         closeup_dir_vec, closeup_axes),
+    ]
+    for fname, title, vec, axes in banner_jobs:
+        bh = add_direction_banner(os.path.join(output_dir, fname), title, vec, axes)
     rec["banner_h"] = bh
 
     return rec
@@ -1817,7 +2031,14 @@ def run(geom_json_path, stp_old, stp_new, output_dir,
             # 一张「红框框着空白」的图去冒充差异证据（不做静默失败是硬规则，见 CONTRIBUTING.md 的 Code style）。
             defects = []
             for attempt in (1, 2):
-                if ctype == "moved":
+                if pre.get("one_sided"):
+                    # 一侧缺件的合法降级：只渲染存在的一侧（issue #22），不能走
+                    # render_one——缺失侧的特写图必然全白，会被全白守卫误判成渲染故障。
+                    rec = render_one_sided(md, av, doc, output_dir, bn, d_idx, change,
+                                           bbox, new_obj, feats, injected_names, pre,
+                                           self_names_map.get(key, set()),
+                                           label_old=lbl_old, label_new=lbl_new)
+                elif ctype == "moved":
                     rec = render_moved_one(md, av, doc, output_dir, bn, d_idx, change,
                                            bbox, new_obj, feats, injected_names, pre,
                                            self_names_map.get(key, set()),

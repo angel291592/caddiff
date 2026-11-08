@@ -206,3 +206,25 @@ def test_performance_only_run_still_reports_no_differences(tmp_path):
     assert s["has_differences"] is False
     assert s["reason"] == i18n.t("summary.no_geometry_diff")
     assert s["performance_diff"]["delta_volume_mm3"] == -192.0
+
+
+def test_one_sided_difference_is_projected_into_the_summary(tmp_path):
+    """单侧差异必须进 summary 的 parts_with_diff（issue #22）。
+
+    why：summary 是给调用方的单一入口。单侧差异如果只活在 render_manifest.json 里，
+    JSON 消费者按 summary 判断就会把「这个版本没有对应件」读成「没有这处差异」——
+    与本项目「not mentioned 不等于 no difference」的铁律直接冲突。
+    """
+    s = _summary(tmp_path,
+                 bom={"removed": [], "added": [], "candidates": []},
+                 manifest=[{"base_name": "EXTRA", "change_type": "shape_changed",
+                            "volume_delta": None, "volume_delta_pct": None,
+                            "removed_volume": 0.0, "added_volume": 62.5,
+                            "cluster_count": 1,
+                            "one_sided": "new_only",
+                            "degraded_reason": "unpaired_after_proximity"}])
+    item = s["parts_with_diff"][0]
+    assert item["one_sided"] == "new_only"
+    assert item["degraded_reason"] == "unpaired_after_proximity"
+    assert s["has_differences"] is True
+    assert s["diff_count"] == 1

@@ -594,6 +594,17 @@ def run(manifest_path, output_pptx):
                 (i18n.t("pptx.title.volume_unchanged",
                         volume=fmt(entry.get('new_volume'))), C_VALUE, True),
             ], 11.5, space_after_pt=0)
+        elif entry.get("one_sided"):
+            # 单侧差异没有"旧→新"可比：只报存在侧体积，并写明另一版没有对应件（issue #22）。
+            side = "new" if entry["one_sided"] == "new_only" else "old"
+            put_runs(p2, [
+                (i18n.t("pptx.title.counter", index=idx + 1, total=len(detail_manifest)),
+                 C_MUTED, False),
+                ("      " + i18n.t("pptx.field.part_volume") + "  ", C_LABEL, False),
+                (f"{fmt(entry.get(side + '_volume'))} mm³", C_VALUE, True),
+                ("      " + i18n.t("pptx.field.counterpart") + "  ", C_LABEL, False),
+                (i18n.t("pptx.value.counterpart_missing_" + side), C_ACCENT, True),
+            ], 11.5, space_after_pt=0)
         else:
             put_runs(p2, [
                 (i18n.t("pptx.title.counter", index=idx + 1, total=len(detail_manifest)),
@@ -607,16 +618,17 @@ def run(manifest_path, output_pptx):
             ], 11.5, space_after_pt=0)
 
         # ============ 三图横排 ============
-        for i, key in enumerate(PANELS):
-            left_base = MARGIN_EMU + i * (col_w + GAP_EMU)
-
-            img_filename = entry.get(key, "")
-            if not img_filename:
-                continue
-            img_path = os.path.join(base_dir, img_filename)
-            if not os.path.exists(img_path):
-                continue
-
+        # 只排真实存在的图：单侧差异没有另一侧的特写（issue #22，缺失侧不生成图片），
+        # 必须让剩下的图连排并居中——按固定列号排会留下一个空列，读起来像"图没生成出来"。
+        present_panels = []
+        for key in PANELS:
+            img_filename = entry.get(key)
+            img_path = os.path.join(base_dir, img_filename) if img_filename else ""
+            if img_filename and os.path.exists(img_path):
+                present_panels.append((key, img_path))
+        offset_cols = (len(PANELS) - len(present_panels)) / 2.0
+        for i, (key, img_path) in enumerate(present_panels):
+            left_base = MARGIN_EMU + int((i + offset_cols) * (col_w + GAP_EMU))
             img_w, img_h = get_image_size(img_path)
             aspect = img_w / img_h
             if aspect > col_w / img_area_h:
@@ -671,19 +683,34 @@ def run(manifest_path, output_pptx):
         else:
             rem = entry.get("removed_volume") or 0
             add_v = entry.get("added_volume") or 0
+            # 整件降级（含单侧缺件）时体积是**整个零件**的体积，不是精确增减料范围：
+            # 标签必须自带这层限定，否则 deck 会给出与 HTML/Markdown 相反的定量结论（issue #23）。
+            degraded = bool(entry.get("degraded_reason"))
+            rem_label = i18n.t("pptx.field.removed_material_whole_part" if degraded
+                               else "pptx.field.removed_material")
+            add_label = i18n.t("pptx.field.added_material_whole_part" if degraded
+                               else "pptx.field.added_material")
             # 增/减料按实际有无着色：为0时用灰色，避免"绿色0.00"误导成有增料
             size_lines = [(lab, val, C_VALUE, ind)
                           for lab, val, ind in cluster_size_lines(entry)]
             add_field_lines(tf, size_lines + [
-                (i18n.t("pptx.field.removed_material"), f"{fmt(rem)} mm³",
+                (rem_label, f"{fmt(rem)} mm³",
                  C_REMOVE if rem > 0 else C_MUTED),
-                (i18n.t("pptx.field.added_material"), f"{fmt(add_v)} mm³",
+                (add_label, f"{fmt(add_v)} mm³",
                  C_ADD if add_v > 0 else C_MUTED),
             ], 12.5)
 
         # ---- 右栏：定性描述 ----
         if is_moved:
             desc = i18n.t("pptx.desc.moved")
+        elif entry.get("one_sided") == "new_only":
+            desc = i18n.t("pptx.desc.one_sided_new")
+        elif entry.get("one_sided") == "old_only":
+            desc = i18n.t("pptx.desc.one_sided_old")
+        elif entry.get("degraded_reason"):
+            # 与 HTML/Markdown 的 report.field.highlight 同一句免责说明（issue #23）：
+            # deck 不能成为唯一一个把整件体积当精确增减料报出去的产物。
+            desc = i18n.t("pptx.desc.whole_part")
         else:
             # 纯增料/纯减料时，新版特写图本来就没有品红——这是正确结果而非渲染失败。
             desc = i18n.t("pptx.desc.no_magenta")
@@ -732,6 +759,19 @@ def run(manifest_path, output_pptx):
                 ("        ", C_MUTED, False),
                 ("↗ ", C_MUTED, True),
                 (i18n.t("pptx.legend.axes_moved"), C_MUTED, False),
+            ], 9.5, space_after_pt=0)
+        elif entry.get("degraded_reason"):
+            # 降级高亮时品红代表整个零件，不是改动的材料——沿用形状类图例会直接说反。
+            put_runs(p, [
+                (i18n.t("pptx.legend.label") + "  ", C_LABEL, True),
+                ("■ ", C_ACCENT, True),
+                (i18n.t("pptx.legend.whole_part_magenta"), C_MUTED, False),
+                ("        ", C_MUTED, False),
+                ("▭ ", RGBColor(0xE0, 0x00, 0x00), True),
+                (i18n.t("pptx.legend.shape_redbox"), C_MUTED, False),
+                ("        ", C_MUTED, False),
+                ("↗ ", C_MUTED, True),
+                (i18n.t("pptx.legend.axes_shape"), C_MUTED, False),
             ], 9.5, space_after_pt=0)
         else:
             put_runs(p, [

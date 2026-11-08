@@ -147,8 +147,12 @@ def _change_title(entry, t):
     return f"{bn} — {t('report.type.' + ctype)}"
 
 
-def _change_facts(entry, t):
-    """把一处差异的关键数值整理成 (标签, 值) 列表。只列出真实存在的量。"""
+def _change_facts(entry, t, label_old=None, label_new=None):
+    """把一处差异的关键数值整理成 (标签, 值) 列表。只列出真实存在的量。
+
+    label_old/label_new 用于单侧差异的「对应件」说明：缺失侧必须以版本名收尾，
+    只写"没有对应件"读者无法判断缺的是哪一版。
+    """
     facts = []
     ctype = entry.get("change_type") or "shape_changed"
     if ctype == "moved":
@@ -176,6 +180,18 @@ def _change_facts(entry, t):
     clusters = entry.get("cluster_details") or []
     if clusters:
         facts.append((t("report.field.clusters"), str(len(clusters))))
+    # 单侧差异（issue #22）：geom_diff 把「只存在于一个版本」的零件当受支持的降级上报，
+    # 渲染层只渲染存在的一侧、不生成缺失侧的图。这里必须用文字说清缺的是哪一版——
+    # 「没提到」不能被读成「没有差异」，空白图更不许冒充证据。
+    one_sided = entry.get("one_sided")
+    if one_sided == "new_only":
+        facts.append((t("report.field.counterpart"),
+                      t("report.value.one_sided_new",
+                        old=label_old or t("label.old"))))
+    elif one_sided == "old_only":
+        facts.append((t("report.field.counterpart"),
+                      t("report.value.one_sided_old",
+                        new=label_new or t("label.new"))))
     # 降级说明（坑 J2）：布尔算不出对称差时高亮的是**整个零件**，不是精确的增减料范围。
     # 不写这一行，读者会把"整件都变了"当成真实结论。
     if entry.get("degraded_reason"):
@@ -458,7 +474,7 @@ def render_markdown(manifest, entries, t, image_prefix="images"):
         for i, entry in enumerate(entries, 1):
             out.append(f"### {i}. {_change_title(entry, t)}")
             out.append("")
-            facts = _change_facts(entry, t)
+            facts = _change_facts(entry, t, old, new)
             if facts:
                 for label, value in facts:
                     out.append(f"- {label}: `{value}`")
@@ -540,8 +556,10 @@ def render_html(manifest, entries, t, image_prefix="images"):
     s = manifest.get("summary") or {}
     has = bool(s.get("has_differences"))
     # 回退规则同 render_markdown；HTML 侧的文件名由下一行的副标题另行给出。
-    old = _esc(manifest.get("label_old") or t("label.old"))
-    new = _esc(manifest.get("label_new") or t("label.new"))
+    raw_old = manifest.get("label_old") or t("label.old")
+    raw_new = manifest.get("label_new") or t("label.new")
+    old = _esc(raw_old)
+    new = _esc(raw_new)
     p = []
     p.append("<!doctype html>")
     p.append('<html lang="%s">' % _esc(i18n.get_lang()))
@@ -585,7 +603,7 @@ def render_html(manifest, entries, t, image_prefix="images"):
         p.append(f"<h2>{_esc(t('report.section.changes'))}</h2>")
         for i, entry in enumerate(entries, 1):
             p.append(f"<h3>{i}. {_esc(_change_title(entry, t))}</h3>")
-            facts = _change_facts(entry, t)
+            facts = _change_facts(entry, t, raw_old, raw_new)
             if facts:
                 p.append("<table>")
                 for label, value in facts:

@@ -127,6 +127,12 @@ $ python tools/scan_sensitive.py --staged   # what a commit would add
   renaming or removing one is a breaking change.
 - Do not fail silently. If a step is skipped, degraded, or falls back to a
   heuristic, that has to be visible in the output, not just in the log.
+- **Every artifact carries the same caveat.** When a diff record has
+  `degraded_reason` (or `one_sided`), the report HTML, the report Markdown and
+  the PPTX deck must each surface it in their own words. A caveat that only one
+  artifact carries makes the other two contradict it, and the deck is the one
+  most likely to be screenshotted. `tests/unit/test_report.py` and
+  `tests/unit/test_build_pptx.py` pin these artifact paths.
 - Text that ends up inside an artifact (image captions, report body, manifest
   reason strings) goes through the i18n table - see the notes at the top of
   `caddiff/i18n.py`. Add both the `en` and the `zh` entry; a change with only one

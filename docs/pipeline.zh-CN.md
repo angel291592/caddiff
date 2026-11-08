@@ -13,7 +13,7 @@
 输入两个 STP（同一装配体新旧两版），在几何层计算差异 → 品红高亮 + 红框标注渲染 → 生成差异清单报告（HTML / Markdown）与机器可读 manifest（JSON），`--pptx` 时另出对比 PPT。
 
 - **状态**：PoC 完成并端到端验证（173/173 断言）；多差异点标框改动 55/55；通用化改造 **P0（健壮性）已完成（18/18 断言，2026-08-27）**；**P1（配对正确性）已实施并实测**——bbox 中心距离与体积相似度联合评分，双侧孤儿就地配对并以降级差异报告，24 对公开装配体版本对实测：结构性变化全部检出，15 对结构未变中 7 对报改名漂移（见 §5 J）；P1 剩余子项「匿名 Label 回溯解析」（`resolve_geometry_object`）未实施；**P2（规模化）未实施**。
-- 产出：`<out>/report.html`（人读报告）+ `report.md`（PR 评论用）+ `diff_manifest.json`（机器契约），差异图在 `<out>/images/*.png`；`--pptx` 时另出 `compare.pptx`，3 页，每页三图横排（旧版特写 / 新版特写 / 整体定位）+ 下方结构化信息带（左栏数值：差异尺寸/减料/增料；右栏定性：整体图视角；底部图例）。每张图顶部带方向标记带（标题 + 视线方向向量 + 三色坐标轴箭头，字号按图宽等比），整体定位图视角逐差异自动选。同一零件多处空间分离差异各自画框，圈号（①②…）标在框外空白处、引出线连回框边，左栏按簇列尺寸。代码全在 `caddiff/` 下，不改动原始 STP/PPT。
+- 产出：`<out>/report.html`（人读报告）+ `report.md`（PR 评论用）+ `diff_manifest.json`（机器契约），差异图在 `<out>/images/*.png`；`--pptx` 时另出 `compare.pptx`，3 页，每页三图横排（旧版特写 / 新版特写 / 整体定位）——单侧差异只有两张，缺失侧不渲染——+ 下方结构化信息带（左栏数值：差异尺寸/减料/增料；右栏定性：整体图视角；底部图例）。每张图顶部带方向标记带（标题 + 视线方向向量 + 三色坐标轴箭头，字号按图宽等比），整体定位图视角逐差异自动选。同一零件多处空间分离差异各自画框，圈号（①②…）标在框外空白处、引出线连回框边，左栏按簇列尺寸。代码全在 `caddiff/` 下，不改动原始 STP/PPT。
 - **P0 已交付的通用性能力**：无差异时正常出说明页不崩溃；装配位置/姿态变化作为 `moved` 类检出并单独呈现（此前静默漏检）；布尔运算移入子进程可硬超时；版本标签由文件名或 CLI 推导；被跳过/未匹配/被阈值筛掉的零件一律显式落进产物与 PPT。
 
 ---
@@ -347,12 +347,13 @@ PART-C 两簇中心仅相距约 2mm，特写图上投影必然重叠，画两个
 **当前处置（已实施）**：分两层。
 ① **诚实性**：`boolean_worker.py` 检出退化结果（`diff.isNull()` 或 bbox 三边长非有限）即返回 `ok:false, error:"boolean_no_result"`，父进程记入 `skipped_parts` 并打印——不再把「算不出来」静默当成「无差异」。
 ② **降级判定（不丢差异）**：`geom_diff` 在布尔失败但**体积差已超容差**时，照报 `shape_changed`，带 `highlight_mode:"whole_part"` 与 `degraded_reason`；`render_diff.precompute_shapes` 据此把**两版零件本体**当作 `removed`/`added`（语义成立：旧版整件在新版不再原样存在、新版整件是"新的形状"），于是走 `render_one` 的正常路径，高亮**整个零件**。`degraded_reason` 一路传到 `summary.parts_with_diff` 与报告（`report.field.highlight` = "whole part — …"）。
+②b **单侧零件（只存在于一个版本）**：`precompute_shapes` 保留存在侧的形状并把记录标成 `one_sided: "new_only" | "old_only"`（必与 `degraded_reason="unpaired_after_proximity"` 同时出现）；随后 `render_one_sided` 只渲染整体图 + **存在侧**一张特写——缺失侧**完全不渲染**，绝不生成空白图。记录、报告（`report.field.counterpart`）与 PPT（标题条 + 右栏 + 图例）都必须用文字写明缺的是哪一版。这里的 `removed_volume` / `added_volume` 与上面的双侧降级同口径，是整个零件的体积。
 why 只在体积差超容差时降级：纯 bbox 变化（如旋转）没有体积证据，那种情况仍按算不出来记录，**不猜**。代价是 `removed_volume`/`added_volume` 在降级条目里等于整件体积而非真实增减料——降级标记就是为让读者知道这一点而存在的。
 ⚠️ 判据必须用 **`XLength`**（= XMax−XMin = inf），不能只判 `XMin`/`XMax` 是否 finite：退化 bbox 的两端是 ±DBL_MAX，是**有限值**，只判端点拦不住（已踩：第一版修复实测仍然静默通过）。
 
 **J3. proximity 配对把「体积差 >50%」的对筛成双侧孤儿后，新侧孤儿不收集、旧侧孤儿不进契约——等数同名族内的真实改动被报成「无差异」、退出码 0。**
 2026-10-05 gate1 语料实测（24 对公开装配体版本对）抓到：6 个同名产品 `SOLID`（SolidWorks 默认名，文档 Label 被唯一化成 SOLID..SOLID005）里 1 件体积 **20548→9090mm³**（FreeCAD 独立载入两版证实），配对器按体积筛把这一对筛成双侧孤儿——旧侧记进 `unpaired_old_labels`、新侧**静默丢弃**，而 `unpaired_old_labels` 只留在中间产物 `geom_diff.json`：`build_summary` 只投影带 note 的条目、`render_diff` 只收带 `geometric_changes` 的条目，最终 manifest 与报告**零痕迹**。与 J1/J2 同类：CI 闸门放行真实改动。
-修法（已实施）：① `pair_by_proximity` **对称返回**两侧孤儿；无形状对象（isNull）随返回值带出并由调用方记入 `skipped_parts` 的 `no_shape`（另一条静默通道封堵）；② 双侧孤儿**就近 1:1 就地配对**降级报 `shape_changed`（`highlight_mode="whole_part"` + `degraded_reason="unpaired_after_proximity"`，`volume_delta=|Δvolume|`——布尔没跑、不是对称差），单侧落单的孤儿单侧报（缺失侧 label/volume/bbox_old 为 None，**`bbox` 永远取存在侧**——渲染层对 `bbox`/`instance_index` 是直接下标，缺了就 KeyError → exit 2）；③ 孤儿对位移**不进 `pair_shifts`**（就近配对不宣称"同一个零件"，不喂给配准一致性判据）。
+修法（已实施）：① `pair_by_proximity` **对称返回**两侧孤儿；无形状对象（isNull）随返回值带出并由调用方记入 `skipped_parts` 的 `no_shape`（另一条静默通道封堵）；② 双侧孤儿**就近 1:1 就地配对**降级报 `shape_changed`（`highlight_mode="whole_part"` + `degraded_reason="unpaired_after_proximity"`，`volume_delta=|Δvolume|`——布尔没跑、不是对称差），单侧落单的孤儿单侧报（缺失侧 label/volume/bbox_old 为 None，**`bbox` 永远取存在侧**——渲染层对 `bbox`/`instance_index` 是直接下标，缺了就 KeyError → exit 2）；渲染层对这类差异走 `render_one_sided`（见坑 J2 ②b）——在此之前它会掉进 `render_one`，为缺失侧生成一张空白特写，全白守卫于是把一次受支持的降级升级成 exit 2（issue #22）；③ 孤儿对位移**不进 `pair_shifts`**（就近配对不宣称"同一个零件"，不喂给配准一致性判据）。
 不变量（条件成立）：两侧经无形状过滤后**等量**时双侧孤儿数相等（一对一消耗）；过滤后不等量才出现单侧孤儿。孤儿配对**不套**体积筛——孤儿正是被该筛剩下的，再套一次会两边全空。
 
 **I5. 子串断言要防"更长的数字"假失败。**
@@ -423,6 +424,7 @@ rects_overview, rects_closeup,                 # 逐簇框（合并重叠后）�
 cluster_count, cluster_details, rect_line_width_px,
 old_volume, new_volume, volume_delta, volume_delta_pct, diff_bbox_size_mm,
 removed_volume, added_volume,
+one_sided,                                     # 可选："new_only" | "old_only" —— 该零件只存在于一个版本
 magenta_px_overview, magenta_px_closeup_new, magenta_px_closeup_old,
 overview_view_tag, overview_view_dir, overview_view_score, overview_view_fallback,
 overview_view_readability, overview_ecc, overview_compose, overview_body_pct,
@@ -436,6 +438,8 @@ translation_mm, rotation_deg, rotation_detected_by, bbox_2d_closeup_old
 `cluster_details` 每项：`{index, role("removed"/"added"), volume, size_mm}`，按体积降序、`index` 从 1 起，与图上红框圈号及报告左栏清单同序。
 
 **`moved` 记录的既有字段取值约定**（避免下游把 0 误读成"没差异"）：`cluster_details=[]`、`cluster_count=0`、`removed_volume=added_volume=0`、`volume_delta=volume_delta_pct=0`。下游**必须**先判 `change_type` 再读这些字段——无条件读会把"只是挪了位置"渲染成"没有任何改动"。同理下游（报告 / PPT）在 `moved` 档都不显示增/减料行，PPT 的图例文案也不同（品红在那类图上代表零件本体而非改动的材料）。
+
+**`one_sided` 记录的取值约定**（零件只存在于一个版本，必带 `degraded_reason`）：只渲染包含该零件的那个版本，因此记录里是 `overview` / `overview_rect` 加**一张**特写——`new_only` 是 `closeup_new` / `closeup_new_rect`，`old_only` 是 `closeup_old` / `closeup_old_rect`。缺失侧**不在记录里，而不是留一张空白图**，下游不得假设两张特写都存在。`removed_volume` / `added_volume` 是整件体积（与 J2 ②b 同一降级口径）。报告与 PPT 必须用文字写明缺的是哪一版（`report.field.counterpart`）；空白图永远不许当作差异证据。
 
 空 manifest（`[]`）不是失败：`diff_count=0` 是有效结论，此时只出"未检出几何差异"说明页并以 **exit 0** 结束；被跳过/未匹配/被阈值筛掉的零件清单取自 `summary.skipped_parts` / `summary.unresolved_notes` / `summary.filtered_by_threshold`。manifest **文件缺失**才是失败，按对外契约记 **exit 2**（执行失败）。
 
@@ -523,7 +527,7 @@ summary.performance_diff              仅 --perf 时出现；整块性能结果�
 - `caddiff/perf_probe.py` — 体积类质量属性快照，跑在独立可 kill 的子进程里（仅 `--perf`，FreeCAD Python）：两版各开一个临时文档，再调 `perf_snapshot.snapshot()`。遍历规则是**只加叶子**——容器的 Shape 是 Compound、没有 `MatrixOfInertia`，取容器会让逐零件归因与整个张量一起消失（四份真实装配体实测，见 [`performance.zh-CN.md`](performance.zh-CN.md) §3）。**import 顺序遵循坑 K1**
 - `caddiff/perf_snapshot.py` — 那份快照背后的遍历与聚合（纯几何，**模块顶层不 import FreeCAD**，所以系统 Python 能给它做单测）：两遍平行轴累积、三级质心回退、带相对容差的张量有效性判据，以及每个未计入对象的明确理由。`principal_from_tensor()` 自带 3×3 Jacobi 特征分解（本包零第三方依赖）
 - `caddiff/perf_diff.py` — 快照→快照的纯算术（不碰 FreeCAD、不起子进程、不读文件）：体积/质心/惯量差值、中心位移的精确逐零件分摊，以及 `--density` 取值解析。**它不参与退出码判定**
-- `caddiff/render_diff.py` — 渲染+红框+品红高亮+新旧并排+方向标记带（FreeCAD Python，GUI 模式）。**`run()` 三阶段顺序是硬约束**（坑 A1）；`capture_and_project()` 保证截图与投影同源（坑 B1/B2）；`pick_best_direction()`/`score_direction()` 是整体图自动选向（坑 F1~F4）；`add_direction_banner()` 画方向标记带（坑 F5/F6）；`split_clusters()`/`project_clusters()`/`merge_rects()`/`draw_rects_on_image()` 是逐差异簇分别标框（坑 H1~H6）；`_place_label()`/`_leader_cost()`/`_region_emptiness()` 是圈号的框外引出线标注与落点实测选位（坑 H7/H8）；`render_moved_one()`/`draw_move_arrow()` 是位移类差异的渲染（坑 I2/I3）；`derive_label()` 推导版本标签；`write_manifest()` 原子落盘。输出目录由调用方传入（`caddiff diff` 传 `<out>/images`）。**import 顺序遵循坑 K1；`os._exit(0)` 退出路径见坑 K2**
+- `caddiff/render_diff.py` — 渲染+红框+品红高亮+新旧并排+方向标记带（FreeCAD Python，GUI 模式）。**`run()` 三阶段顺序是硬约束**（坑 A1）；`capture_and_project()` 保证截图与投影同源（坑 B1/B2）；`pick_best_direction()`/`score_direction()` 是整体图自动选向（坑 F1~F4）；`add_direction_banner()` 画方向标记带（坑 F5/F6）；`split_clusters()`/`project_clusters()`/`merge_rects()`/`draw_rects_on_image()` 是逐差异簇分别标框（坑 H1~H6）；`_place_label()`/`_leader_cost()`/`_region_emptiness()` 是圈号的框外引出线标注与落点实测选位（坑 H7/H8）；`render_moved_one()`/`draw_move_arrow()` 是位移类差异的渲染（坑 I2/I3）；`render_one_sided()` 渲染只存在于一个版本的零件（整体图 + 存在侧特写，issue #22）；`derive_label()` 推导版本标签；`write_manifest()` 原子落盘。输出目录由调用方传入（`caddiff diff` 传 `<out>/images`）。**import 顺序遵循坑 K1；`os._exit(0)` 退出路径见坑 K2**
 - `caddiff/report.py` — 差异报告生成（系统 Python，纯标准库）：读 `diff_manifest.json` + 同目录 `images/render_manifest.json`（拿逐处差异的图片文件名与数值），出 `report.html` 与 `report.md`。manifest 里记录的 `render_manifest.json` 绝对路径读不到时（manifest 被拷进另一个 job 的常见情形），回退到 `<manifest 同级>/images/render_manifest.json`；两者都读不到时向 stderr 打警告，而不是交出一份「摘要说有差异、正文没有任何明细」的报告。图片链接按记录的 `images_dir` 相对 manifest 目录解析，不再写死 `images/`。**报告独立成模块、PPT 降为可选是刻意选择**：HTML/Markdown 是默认产物，PR 里能直接贴 Markdown、浏览器里能直接看 HTML，而 PPT 要求读者装 PowerPoint。**刻意不引模板引擎**：报告是给人看的一次性产物，为它拉一个 Jinja2 依赖不划算，`html.escape` + f-string 足够。**不要读 `geom_diff.json` 重新推导结论**——那会让报告与 manifest 出现两套口径。**图片文件名必须百分号编码后才能进 Markdown 链接 / HTML `src`**（`_image_url()`）：文件名由零件名拼出，而空格在 CommonMark 的链接目的地里是**终止符**——不编码时 GitHub 把整行渲染成纯文本，图**静默消失**（没有 `<img>`、也不报错）。公开语料实测：186 张图的名字含空格、36 张含括号
 - `caddiff/build_pptx.py` — PPT 拼版（系统 Python）：标题条 + 三图横排 + 两栏结构化信息带 + 图例（版式约束见坑 G1~G7）。`cluster_size_lines()` 按簇列尺寸，圈号 `CIRCLED` 必须与 render_diff 一致（坑 H6）；按 `change_type` 分派 shape_changed / moved 两套版式；`build_empty_slide()` 出"未检出差异"说明页（含被跳过零件清单）；`--pptx` 时才被调用
 - `caddiff/run_pipeline.py` — 编排入口（`caddiff diff` 子命令的流水线实现），注意**渲染步**要传 `stp_old`+`stp_new` 两个路径（它的步骤号在不开 `--perf` 时是 3、开了是 4）。异常与超时会打印已产出的中间产物路径；渲染超时按差异数估算而非写死；`build_summary()` 把散落在多个 JSON 里的结论汇总进 `diff_manifest.json` 的 `summary` 块，供调用方单点消费（见 §9）

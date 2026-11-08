@@ -38,6 +38,8 @@ _LANGS = {
         "banner.title.closeup": "{label} · close-up",
         "banner.title.moved_new": "{label} · new position",
         "banner.title.moved_old": "{label} · old position",
+        "banner.title.one_sided_new": "{label} · no counterpart",
+        "banner.title.one_sided_old": "{label} · no counterpart",
         "label.old": "Old",
         "label.new": "New",
         # —— JSON 产出物（render_diff.py / geom_diff.py）——
@@ -68,6 +70,11 @@ _LANGS = {
         "report.field.clusters": "Separate clusters",
         "report.field.highlight": "Highlighted region",
         "report.degraded.whole_part": "whole part — {reason}",
+        "report.field.counterpart": "Counterpart",
+        "report.value.one_sided_new": (
+            "not present in {old} — this part exists only in the new revision"),
+        "report.value.one_sided_old": (
+            "not present in {new} — this part exists only in the old revision"),
         "report.field.diff_extent": "Changed extent",
         "report.field.view": "Viewpoint",
         "report.view.internal": "inside the assembly — located by the red box only",
@@ -125,6 +132,8 @@ _LANGS = {
         "banner.title.closeup": "{label}  特写",
         "banner.title.moved_new": "{label}  新位置",
         "banner.title.moved_old": "{label}  旧位置",
+        "banner.title.one_sided_new": "{label}  无对应件",
+        "banner.title.one_sided_old": "{label}  无对应件",
         "label.old": "旧版",
         "label.new": "新版",
         "summary.no_geometry_diff": "两版之间未检出几何差异",
@@ -152,6 +161,9 @@ _LANGS = {
         "report.field.clusters": "差异簇数量",
         "report.field.highlight": "高亮范围",
         "report.degraded.whole_part": "整个零件——{reason}",
+        "report.field.counterpart": "对应件",
+        "report.value.one_sided_new": "{old}没有对应件——该零件只存在于新版",
+        "report.value.one_sided_old": "{new}没有对应件——该零件只存在于旧版",
         "report.field.diff_extent": "差异范围",
         "report.field.view": "视角",
         "report.view.internal": "位于装配体内部——仅以红框定位",
@@ -281,6 +293,9 @@ _PPTX_KEYS = {
         "pptx.field.part_volume": "Part volume",
         "pptx.field.removed_material": "Material removed",
         "pptx.field.added_material": "Material added",
+        "pptx.field.removed_material_whole_part": "Removed (whole part)",
+        "pptx.field.added_material_whole_part": "Added (whole part)",
+        "pptx.field.counterpart": "Counterpart",
         "pptx.field.change_note": "What changed",
         "pptx.field.overview_view": "Overview view",
         # —— 类型 / 角色 / 取值 ——
@@ -291,6 +306,8 @@ _PPTX_KEYS = {
         "pptx.value.cluster_count": "{n} regions",
         "pptx.value.rotation_none": "None (translation only)",
         "pptx.value.rotation_bbox_note": " (inferred from bbox ordering, low confidence)",
+        "pptx.value.counterpart_missing_new": "none in the old revision",
+        "pptx.value.counterpart_missing_old": "none in the new revision",
         # —— 无差异页 ——
         "pptx.empty.title": "No geometric differences detected",
         "pptx.empty.skipped_header": "Parts not compared / needing manual review",
@@ -320,6 +337,9 @@ _PPTX_KEYS = {
         # —— 详情页右栏 ——
         "pptx.desc.moved": "Geometry unchanged; only the assembly position / pose changed. Magenta = the moved part body; the blue arrow on the new-position image points from the old position to the new one.",
         "pptx.desc.no_magenta": "No magenta in this image (the difference is purely added or removed material — it exists in only one version)",
+        "pptx.desc.whole_part": "The comparison degraded: the highlight is the whole part, and the volumes below are whole-part volumes — not exact removed/added material.",
+        "pptx.desc.one_sided_new": "This part exists only in the new revision; the old one has no counterpart. The close-up shows the only revision that contains it.",
+        "pptx.desc.one_sided_old": "This part exists only in the old revision; the new one has no counterpart. The close-up shows the only revision that contains it.",
         "pptx.note.view_fallback": "  · Inside the assembly, occluded from every direction — located by the red box only",
         "pptx.note.view_auto": "  · Auto-selected: least occluded, clearest view",
         # —— 图例 ——
@@ -328,6 +348,7 @@ _PPTX_KEYS = {
         "pptx.legend.moved_arrow": "Blue arrow = old → new position, with the shift",
         "pptx.legend.axes_moved": "Banner arrow = world axes (X red / Y green / Z blue)",
         "pptx.legend.shape_magenta": "Magenta = material changed here (removed old, added new)",
+        "pptx.legend.whole_part_magenta": "Magenta = the whole part (degraded), not exact changed material",
         "pptx.legend.shape_redbox": "Red box = diff regions; ①② match the left column",
         "pptx.legend.axes_shape": "Banner arrow = world axes (X red / Y green / Z blue)",
     },
@@ -350,6 +371,9 @@ _PPTX_KEYS = {
         "pptx.field.part_volume": "零件体积",
         "pptx.field.removed_material": "减少材料",
         "pptx.field.added_material": "新增材料",
+        "pptx.field.removed_material_whole_part": "减少材料（整个零件）",
+        "pptx.field.added_material_whole_part": "新增材料（整个零件）",
+        "pptx.field.counterpart": "对应件",
         "pptx.field.change_note": "变化说明",
         "pptx.field.overview_view": "整体图视角",
         # —— 类型 / 角色 / 取值 ——
@@ -360,6 +384,8 @@ _PPTX_KEYS = {
         "pptx.value.cluster_count": "共 {n} 处",
         "pptx.value.rotation_none": "无（仅平移）",
         "pptx.value.rotation_bbox_note": "（由 bbox 排列推断，置信度较低）",
+        "pptx.value.counterpart_missing_new": "旧版没有",
+        "pptx.value.counterpart_missing_old": "新版没有",
         # —— 无差异页 ——
         "pptx.empty.title": "未检出几何差异",
         "pptx.empty.skipped_header": "未参与比对 / 需人工复核的零件",
@@ -383,6 +409,9 @@ _PPTX_KEYS = {
         # —— 详情页右栏 ——
         "pptx.desc.moved": "该零件几何未变，仅装配位置 / 姿态改变。品红＝发生位移的零件本体，新位置图上的蓝色箭头由旧位置指向新位置。",
         "pptx.desc.no_magenta": "此图无品红（该差异为纯增料或纯减料，材料只存在于另一版本）",
+        "pptx.desc.whole_part": "本次比较为降级结果：高亮的是整个零件，下面两个体积也是整个零件的体积，不是精确的增减料范围。",
+        "pptx.desc.one_sided_new": "该零件只存在于新版，旧版没有对应件；特写图展示的是唯一包含它的版本。",
+        "pptx.desc.one_sided_old": "该零件只存在于旧版，新版没有对应件；特写图展示的是唯一包含它的版本。",
         "pptx.note.view_fallback": "  · 该差异位于装配体内部，各向均被遮挡，故仅以红框定位",
         "pptx.note.view_auto": "  · 自动选取，以差异最不被遮挡且画面清晰为准",
         # —— 图例 ——
@@ -391,6 +420,7 @@ _PPTX_KEYS = {
         "pptx.legend.moved_arrow": "蓝箭头＝由旧位置指向新位置，旁标位移量",
         "pptx.legend.axes_moved": "标记带内箭头＝世界坐标轴方向（X红 / Y绿 / Z蓝）",
         "pptx.legend.shape_magenta": "品红＝本次改动的材料（旧版图为被去掉的，新版图为新增的）",
+        "pptx.legend.whole_part_magenta": "品红＝整个零件（降级高亮），非精确增减料",
         "pptx.legend.shape_redbox": "红框＝各处差异分别定位，①②对应左栏清单",
         "pptx.legend.axes_shape": "各图顶部标记带内箭头＝该视角下的世界坐标轴方向（X红 / Y绿 / Z蓝）",
     },
