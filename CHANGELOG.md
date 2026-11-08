@@ -22,6 +22,18 @@ commit-derived bullets. Consequences:
     carries no date yet — add one when `v0.1.0` is actually tagged.
 -->
 
+## [0.4.6](https://github.com/angel291592/caddiff/compare/v0.4.5...v0.4.6) (2026-11-08)
+
+
+### Bug Fixes
+
+* render one-sided parts and carry the caveat into every artifact ([#22](https://github.com/angel291592/caddiff/issues/22), [#23](https://github.com/angel291592/caddiff/issues/23)) ([b21e5b4](https://github.com/angel291592/caddiff/commit/b21e5b425b90ef158046e303f10e1ab8327fa895))
+
+
+### Documentation
+
+* **release:** bump the pinned image/action tags to v0.4.5 ([fcc0ae0](https://github.com/angel291592/caddiff/commit/fcc0ae04c1bc068cd7e8cc802f23a3915c7ad164))
+
 ## [0.4.5](https://github.com/angel291592/caddiff/compare/v0.4.4...v0.4.5) (2026-11-06)
 
 
