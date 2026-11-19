@@ -27,13 +27,13 @@ Two companion documents matter as much as this one:
 The published image already contains FreeCAD, so this is the shortest path:
 
 ```bash
-docker run --rm -v "$PWD:/work" ghcr.io/<owner>/<repo>:latest diff OLD.stp NEW.stp -o report/
+docker run --rm -v "$PWD:/work" ghcr.io/angel291592/caddiff:latest diff OLD.stp NEW.stp -o report/
 ```
 
 On Windows PowerShell:
 
 ```powershell
-docker run --rm -v ${PWD}:/work ghcr.io/<owner>/<repo>:latest diff OLD.stp NEW.stp -o report/
+docker run --rm -v ${PWD}:/work ghcr.io/angel291592/caddiff:latest diff OLD.stp NEW.stp -o report/
 ```
 
 The exit code is part of the public contract:

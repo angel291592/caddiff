@@ -25,13 +25,13 @@
 已发布的镜像中已包含 FreeCAD,因此这是一条最短路径:
 
 ```bash
-docker run --rm -v "$PWD:/work" ghcr.io/<owner>/<repo>:latest diff OLD.stp NEW.stp -o report/
+docker run --rm -v "$PWD:/work" ghcr.io/angel291592/caddiff:latest diff OLD.stp NEW.stp -o report/
 ```
 
 在 Windows PowerShell 上:
 
 ```powershell
-docker run --rm -v ${PWD}:/work ghcr.io/<owner>/<repo>:latest diff OLD.stp NEW.stp -o report/
+docker run --rm -v ${PWD}:/work ghcr.io/angel291592/caddiff:latest diff OLD.stp NEW.stp -o report/
 ```
 
 退出码是公开契约的一部分:

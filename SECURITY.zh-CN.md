@@ -17,7 +17,7 @@
 使用 GitHub Security Advisories：打开本仓库的 **Security** 标签页并选择 **Report a vulnerability**，或直接前往：
 
 ```
-https://github.com/<owner>/<repo>/security/advisories/new
+https://github.com/angel291592/caddiff/security/advisories/new
 ```
 
 私密 advisory 让我们在其他任何人读到细节之前，与你讨论、修复并协调披露。

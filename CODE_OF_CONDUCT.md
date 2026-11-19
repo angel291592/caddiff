@@ -1,10 +1,6 @@
-
 # Contributor Covenant Code of Conduct
 
-> **Maintainer note - placeholder contact:** the enforcement address below,
-> `maintainers@example.com`, is a **placeholder that MUST be replaced** with a real,
-> monitored project address before this repository is published. Do not ship this
-> file while the placeholder is still in it.
+English | [简体中文](CODE_OF_CONDUCT.zh-CN.md)
 
 ## Our Pledge
 
@@ -42,7 +38,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at maintainers@example.com. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement through GitHub's private reporting — open the repository's **Security** tab and choose **Report a vulnerability**, or use GitHub's **Report abuse** on the offending content. All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 

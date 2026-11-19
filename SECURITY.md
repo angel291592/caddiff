@@ -16,7 +16,7 @@ Use GitHub Security Advisories: open the **Security** tab of this repository and
 choose **Report a vulnerability**, or go directly to:
 
 ```
-https://github.com/<owner>/<repo>/security/advisories/new
+https://github.com/angel291592/caddiff/security/advisories/new
 ```
 
 A private advisory lets us discuss, fix, and coordinate disclosure with you

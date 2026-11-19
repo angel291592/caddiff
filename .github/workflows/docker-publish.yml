@@ -5,7 +5,7 @@
 # under their own licenses, so "image tag ↔ source tag ↔ build script" must line
 # up one-to-one. Before this file the image existed only on the maintainer's
 # machine, which is exactly the state that rule forbids: nothing tied
-# `ghcr.io/<owner>/caddiff` to a commit.
+# `ghcr.io/angel291592/caddiff` to a commit.
 #
 # WHY `GITHUB_TOKEN` IS ENOUGH: a token login is only needed for a *first* push
 # as the package owner. Using the workflow's own `GITHUB_TOKEN` (with
