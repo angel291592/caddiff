@@ -63,7 +63,13 @@ jobs:
 
   unit:
     name: unit (offline, no FreeCAD)
-    runs-on: ubuntu-latest
+    # `ubuntu-latest` moved to Ubuntu 26.04, and setup-python has no prebuilt
+    # interpreter for 3.9 on that image (`3.9 was not found for Ubuntu 26.04`).
+    # The floor therefore gets pinned to 24.04 — the same base the runtime image
+    # uses — while the 3.12 leg can follow `ubuntu-latest`. Pinning by runner, not
+    # by dropping 3.9: the floor is a promise, and a promise needs a runner that
+    # can still keep it.
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     # Two ends of the supported range, not two samples in the middle:
     #   * 3.9 — the floor pyproject.toml advertises (`requires-python = ">=3.9"`).
@@ -77,7 +83,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.12"]
+        include:
+          - python-version: "3.9"
+            os: ubuntu-24.04
+          - python-version: "3.12"
+            os: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
