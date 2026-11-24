@@ -496,18 +496,31 @@ When the filenames are hashes you must pass `--label-old` / `--label-new` explic
 
 The `summary` block of `diff_manifest.json` is a **single entry point prepared for callers** — reading it is enough; there is no need to correlate other files (it only aggregates and never recomputes; every field comes from upstream artifacts, avoiding "summary and details disagreeing"):
 ```
+summary.manifest_version              manifest contract version (mirrored from the top-level `manifest_version`)
 summary.diff_count                    total BOM + geometry differences; 0 means none detected (a valid conclusion, not a failure)
+summary.geometry_diff_count           geometry-layer differences (== the number of parts_with_diff entries);
+                                      0 here while bom_diff_count > 0 means "the whole assembly was replaced", not "no changes"
+summary.bom_diff_count                BOM-layer differences = len(bom_added) + len(bom_removed) + len(bom_count_mismatch)
+summary.has_differences               the verdict: bool(geometry_diff_count or bom_diff_count).
+                                      true is what makes the CLI exit 1, false exit 0
 summary.by_change_type                {"shape_changed": N, "moved": M} (geometry-only detail)
 summary.parts_with_diff[]             one per geometry diff: base_name + change_type (geometry-only detail);
                                       shape_changed carries volume / share / added-removed / cluster count,
                                       moved carries translation_mm/rotation_deg
+summary.bom_added[] / bom_removed[]   comparison keys present in only one revision (exact name when the family is
+                                      stable, otherwise the family base_name — see §1); BOM-level detail
+summary.bom_count_mismatch[]          comparison keys whose instance count differs between the revisions
+                                      (same key rule as above); BOM-level detail
 summary.skipped_parts[]               parts that did not participate + reason
                                       (timeout / too_complex / no_shape / user_skipped)
 summary.unresolved_notes[]            the ones that could not be compared (e.g. no geometry match / count mismatch)
 summary.filtered_by_threshold[]       filtered out by --min-diff-pct
 summary.global_alignment_warning      true = the two revisions' global alignment looks inconsistent; differences may largely be spurious
+summary.global_alignment              the raw block behind that flag: checked / paired_count / median_shift_mm /
+                                      max_shift_mm / mean_shift_vector / direction_consistency (misaligned mirrors the warning)
 summary.total_candidates              number of candidate parts compared
 summary.settings                      the gate values actually in effect this run (for reproduction and tuning)
+summary.label_old / label_new         the revision labels used on the images and in the report
 summary.reason                        present only when has_differences=false;
                                       the valid-conclusion statement explaining "no differences between the two revisions"
 summary.performance_diff              present only with --perf; the whole performance block (deltas +

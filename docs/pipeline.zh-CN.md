@@ -485,18 +485,30 @@ caddiff diff <OLD.stp> <NEW.stp> [选项]
 
 `diff_manifest.json` 的 `summary` 块是**为调用方准备的单一入口**，读它就够，不必再关联其他文件（它只汇总、不重算，字段全部取自上游产物，避免"摘要与明细不一致"）：
 ```
+summary.manifest_version              manifest 契约版本（照抄顶层 `manifest_version`）
 summary.diff_count                    BOM + 几何差异总数；0 即未检出差异（有效结论，不是失败）
+summary.geometry_diff_count           几何层差异数（== parts_with_diff 的条目数）；
+                                      它为 0 而 bom_diff_count > 0 表示「整个装配体被换掉」，不是「没有差异」
+summary.bom_diff_count                BOM 层差异数 = len(bom_added) + len(bom_removed) + len(bom_count_mismatch)
+summary.has_differences               判定结论：bool(geometry_diff_count or bom_diff_count)。
+                                      true 时 CLI 退出 1，false 退出 0
 summary.by_change_type                {"shape_changed": N, "moved": M}（仅几何差异明细）
 summary.parts_with_diff[]             每处几何差异：base_name + change_type（仅几何差异明细）；
                                       shape_changed 带体积/占比/增减料/簇数，
                                       moved 带 translation_mm/rotation_deg
+summary.bom_added[] / bom_removed[]   只存在于一版的比对键（族稳定时是精确名，否则是族名 base_name，
+                                      见 §1）；BOM 级明细
+summary.bom_count_mismatch[]          两版实例数不一致的比对键（键规则同上）；BOM 级明细
 summary.skipped_parts[]               未参与比对的零件 + reason
                                       (timeout / too_complex / no_shape / user_skipped)
 summary.unresolved_notes[]            没比上的（如 no geometry match / count mismatch）
 summary.filtered_by_threshold[]       被 --min-diff-pct 筛掉的
 summary.global_alignment_warning      true = 两版整体配准疑似不一致，差异可能大量为伪差异
+summary.global_alignment              该标志背后的原始配准块：checked / paired_count / median_shift_mm /
+                                      max_shift_mm / mean_shift_vector / direction_consistency（misaligned 与上面的警告同值）
 summary.total_candidates              比对候选零件数
 summary.settings                      本次实际生效的闸门取值（便于复现与调参）
+summary.label_old / label_new         图上与报告里使用的两版标签
 summary.reason                        仅 has_differences=false 时出现；
                                       两版未检出差异的有效结论说明
 summary.performance_diff              仅 --perf 时出现；整块性能结果（差值 + 每版绝对值 +
